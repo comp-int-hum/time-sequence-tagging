@@ -1,0 +1,919 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="../schema/wwp-store.rng"    type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<?xml-model href="../schema/wwp-store.isosch" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<!-- $Id: taylor.poems.xml 37084 2019-05-08 20:47:35Z dsg $ -->
+<TEI xmlns="http://www.wwp.northeastern.edu/ns/textbase" xmlns:xi="http://www.w3.org/2001/XInclude" xml:lang="en">
+  <teiHeader xml:id="TR00213.hdr">
+    <fileDesc>
+      <titleStmt>
+        <title type="main">Poems by Ellen Taylor, the Irish Cottager, 1792</title>
+        <author>
+          <persName ref="p:etaylor.qot" type="person-female">Taylor, Ellen</persName>
+        </author>
+        <sponsor>Brown University</sponsor>
+        <sponsor>Northeastern University</sponsor>
+        <funder>U.S. National Endowment for the Humanities</funder>
+      </titleStmt>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPedition)"/>    
+      <publicationStmt>
+        <publisher>Northeastern University Women Writers Project</publisher>
+        <address>
+          <addrLine>SL 213</addrLine>
+          <addrLine>Northeastern University</addrLine>
+          <addrLine>360 Huntington Avenue</addrLine>
+          <addrLine>Boston, MA  02115-5005</addrLine>
+          <addrLine>USA</addrLine>
+          <addrLine>url:mailto:wwp@neu.edu</addrLine>
+          <addrLine>url:http://www.wwp.northeastern.edu/</addrLine>
+        </address>
+        <idno type="WWP">TR00213</idno>
+        <idno type="URL">http://www.wwp.northeastern.edu/texts/taylor.poems.html</idno>
+        <xi:include href="../common-boilerplate.xml" xpointer="element(WWPavailability)"/>
+        <date when="2008-08-22"/>
+      </publicationStmt>
+      <sourceDesc n="OT00213">
+        <biblStruct>
+          <monogr>
+            <author>
+              <persName type="regularized" ref="p:etaylor.qot">Taylor, Ellen</persName>
+              <persName type="titlePage" ref="p:etaylor.qot">Ellen Taylor</persName>
+            </author>
+            <title>Poems, by Ellen Taylor, the Irish cottager</title>
+            <idno type="uk">11632.f.62</idno>
+            <imprint>
+              <pubPlace>London</pubPlace>
+              <publisher>
+                <persName ref="p:unknown.zzx" type="person">[s.n.]</persName>
+              </publisher>
+              <date when="1792">1792</date>
+            </imprint>
+            <extent>
+              <measure unit="page" quantity="20"/>
+            </extent>
+            <extent>
+              <dimensions>
+                <format>quarto</format>
+              </dimensions>
+            </extent>
+          </monogr>
+        </biblStruct>
+      </sourceDesc>
+    </fileDesc>
+    <encodingDesc>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPprojectDescription)"/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPsamplingDeclaration)"/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPeditorialDeclaration)"/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPcharacterDeclaration)"/>
+      <tagsDecl/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPclassificationDeclaration)"/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPlistPrefixDefinitions)"/>
+    </encodingDesc>
+    <profileDesc>
+      <textClass>
+        <catRef type="main" target="#G.verse.lyric"/>
+      </textClass>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPcalendarDescription)"/>
+      <xi:include href="../common-boilerplate.xml" xpointer="element(WWPlangUsage)"/>
+    </profileDesc>
+    <revisionDesc>
+      <change n="RCS-1.30" when="2010-12-10" who="p:npeterson.gwx">added <att>type</att> to docRole.</change>
+      <change n="RCS:1.26" when="2009-02-19" who="p:mcarriger.ark">added some persnames while looking for placename in persname.</change>
+      <change n="RCS:1.24" when="2008-08-25" who="p:jmelson.nep">Added genre information.</change>
+      <change n="RCS:1.21" when="2007-02-05" who="p:wgui.ner">Added n= values to PBs.Corrected idealized signature ID values for front matter pages.</change>
+      <change n="RCS:1.18" when="2004-12-21" who="p:jmelson.nep">Completed file renovation: changed NAME to PERSNAME where appropriate; added PERSNAME and PLACENAME; added ACROSTICS info
+ to hyperDiv for final poem; added renditional information for some poem title, as needed; other minor adjustments; validated;
+ supravalidated.</change>
+      <change n="RCS:1.13" when="1999-08-10" who="p:jrussom.zxg">Revised TEI header Filedesc.</change>
+      <change when="1999-05-07" who="p:ldodds.rnd">Entered linegroup renovations.</change>
+      <change when="1999-04-30" who="p:blandry.nua">Updated CASE throughout.</change>
+      <change when="1999-02-16" who="p:jflanders.lfw">Validated to DTD version 1.1.23a except for header.</change>
+      <change n="SGMWWP90" when="1995-11-20" who="p:jatlee.awv">checking round, changed filetype</change>
+      <change n="SGMWWP90" when="1995-09-27" who="p:jatlee.awv">single proofed and entered corrections.</change>
+      <change n="SGMWWP00" when="1995-06-20" who="p:jatlee.awv">Added tei header</change>
+      <change n="SGMWWP00" when="1995-04-18" who="p:jatlee.awv">Converted Change Log to TEI "revisionDesc".</change>
+      <change n="SGMWWP00" when="1995-02-09" who="p:emcnulty.dav">conforms to first DTD</change>
+      <change n="WWPPRF00" when="1994-11-15" who="p:lnoveck.yhx">modified title page to conform with P3</change>
+      <change n="WWPPRF00" when="1994-10-20" who="p:lnoveck.yhx">changed tPage.p to conform with TEI</change>
+      <change n="WWPPRF00" when="1994-08-31" who="p:cmah.dci">Added /stanza's. </change>
+      <change n="WWPPRF00" when="1994-08-23" who="p:kbordner.fqd">Added end line tags where needed. </change>
+      <change n="WWPPRF00" when="1994-08-18" who="p:crounds.bzq">I changed quote marks into tags. </change>
+      <change n="WWPPRF00" when="1994-08-02" who="p:kbordner.fqd">Changed italic entities to tag attributes.
+    </change>
+      <change n="WWPPRF00" when="1993-07-26" who="p:cmah.dci">conversion to pointy</change>
+      <change n="SCRIPT" when="1990-08-16" who="p:ebrennan.gxl">".fn" and ".efn" defined for initial input; ".estanza"
+    also defined. </change>
+      <change when="1990-06-25" who="p:ebrennan.gxl">"if 'syspdev' = " etc. inserted in appropriate places to
+    have everything set for either x9700 or scr9700 printing. go
+    team! </change>
+      <change when="1990-06-20" who="p:ebrennan.gxl">Happy birthday! a present to one's self ... an updated
+    macrodef that includes all the stuff for TAMU drivers.  Also
+    includes .cc and .wd for titles, and paras; .cc in stanza but not
+    yet a way to prevent single stanza lines from widowing.
+   </change>
+      <change when="1990-05-21" who="p:ebrennan.gxl">".stg" changed to "stinfo" for act and scene information
+    only; ".stdir" now handles all entrances, exits, etc.
+   </change>
+      <change when="1990-05-03" who="p:ebrennan.gxl">fixed .spch macro to accommodate left or centered speaker
+    designation;</change>
+    </revisionDesc>
+  </teiHeader>
+  <text xml:id="TR00213">
+    <hyperDiv>
+<acrostics>
+        <acrostic target="#poem.01">
+          <persName>George Chapman</persName>
+        </acrostic>
+      </acrostics></hyperDiv>
+    <front>
+      <pb n="i"/>
+      <milestone unit="sig" n="A1r"/>
+      <titleBlock>
+        <titlePart type="main">Poems,</titlePart>
+        <respLine rend="case(allcaps)">By
+<lb/><docRole type="author"><persName>Ellen Taylor</persName>,
+<lb/>The
+<lb/><hi rend="slant(italic)">Irish Cottager.</hi></docRole></respLine>
+        <epigraph rend="align(center)slant(italic)pre(#rule)post(#rule)">
+          <quote>
+            <lg type="poem" subtype="indeterminate">
+              <lg type="indeterminate">
+                <l>Full many a gem of pureſt ray ſerene,</l>
+                <l>The dark unfathom'd caves of Ocean bear;</l>
+                <l>Full many a flower is born to bluſh unſeen,</l>
+                <l>And waſte its ſweetneſs on the deſert air.</l>
+              </lg>
+            </lg>
+          </quote>
+          <lb/>
+          <bibl rend="align(right)case(smallcaps)">Gray.</bibl>
+        </epigraph>
+        <docImprint rend="case(smallcaps)">Printed by <docRole type="printer"><persName>G. Draper</persName></docRole>,
+<placeName>Grafton-Street</placeName>.
+<docDate when="1792" rend="pre(#rule)">1792.</docDate>
+</docImprint>
+      </titleBlock>
+      <pb n="ii"/>
+      <milestone unit="sig" n="A1v"/>
+      <pb n="iii"/>
+      <milestone unit="sig" n="A2r"/>
+      <div type="prefatory" rend="slant(italic)">
+        <head rend="align(center)case(allcaps)">Introduction.</head>
+        <p><hi rend="class(#DIC)">T</hi><hi rend="case(allcaps)">he</hi> Authoreſs of the following little Poems, tho' in a ſtate of the
+<lb/>moſt retired obſcurity, has by the natural efforts of Genius attracted the
+<lb/>attention of the Public.  A few lines written by her appeared ſome time
+<lb/>ago in one of our News-papers; in which were ſuch ſtrong effuſions of
+<lb/>feeling and ſenſibility, as induced the Editor to make minute enquiries
+<lb/>into the life and ſituation of the Writer.  It appears that ſhe was the
+<lb/>the daughter of an indigent Cottager, in a remote part of the Queen's
+<lb/>County; who had barely the ability to afford common ſuſtenance to her
+<lb/>and a numerous family during his life-time:  of courſe it was out of his
+<lb/>power to educate this promiſing genius in a more extenſive manner,
+<lb/>than by having her inſtructed in the moſt common rudiments of read­
+<lb/>ing and writing:  on the death of her father even theſe ſcanty reſour­
+<lb/>ces failed, as what little property he left, devolv'd to her elder brother,
+<lb/>whoſe conduct our Authoreſs noticed in one of her Poems, written on the
+<lb/>death of her favourite younger brother, with whom ſhe lived in great
+<lb/>poverty, tho' ſeemingly happy and content, until it pleaſed heaven to
+<lb/>afflict this her <quote source="b:TR00213">protector, brother, friend,</quote> (as ſhe pathetically calls
+<lb/>him) with a lingering diſorder which terminated in his death.  During
+<lb/>his tedious and ſevere illneſs the kind and affectionate <persName>Ellen</persName> attended him
+<lb/>with unremitting care and aſſiduity, and was obliged in order to ſupport
+<lb/>and alleviate his ſufferings, to ſell every article ſhe poſſeſs'd; even ſome
+<lb/>favourite books which were given her by a friend in her neighbourhood,
+<lb/>as a mark of approbation and reward for her talents and genius: thus
+<lb/>reduced, ſhe offered herſelf as a ſervant in a Gentleman's Family near
+<lb/>where ſhe lived, and continued n that ſituation for ſome time, always
+<lb/>behaving with great propriety and good conduct; but her affliction for
+<lb/>her brother's death, and a melancholy turn of mind ocaſioned by her
+<lb/>many and different diſtreſſes, rendered her unfit for a ſervice where
+<lb/>activity and labour were actually neceſſary; ſhe was therefore diſ­
+<lb/>miſs'd, but for no particular fault or miſconduct: during her reſidence
+<mw type="sig" rend="align(center)">A2</mw>
+<mw rend="align(right)slant(italic)break(no)" type="catch">in</mw>
+<pb n="iv"/>
+<milestone unit="sig" n="A2v"/>
+<lb/>in this family ſhe wrote the firſt Poem inſerted in the collection now
+<lb/>offered to the Public, and which drew the attention of a Gentleman then
+<lb/>on a viſit at her maſter's houſe, who on going into the drawing-room
+<lb/>early one morning juſt as <persName>Ellen</persName> had finiſhed cleaning it, obſerved her
+<lb/>ſtanding before a Print, which reſembled a female figure leaning in a
+<lb/>weeping attitude on an Urn; our Authoreſs had a written paper in her
+<lb/>hand, and appeared drowned in tears; the Gentleman requeſted to know
+<lb/>the cauſe of her grief, and alſo what the paper contained which ſeemed
+<lb/>to affect her ſo much; with modeſty and reluctance ſhe ſhewed the pa­
+<lb/>per; which to the Gentleman's great aſtoniſhment contained the lines be­
+<lb/>fore-mentioned, as the firſt in this collection:  It now becomes almoſt a
+<lb/>duty of the generous public, to prevent this beautiful field flower from
+<lb/>being buried (like <persName>Burn's</persName> mountain daizy,) beneath the oppreſſive Plough­
+<lb/>ſhare of povery, and which may be prevented by the ſale of her Poems;
+<lb/>the profits, and ſome liberal ſubscriptions, being intended for her ſole uſe
+<lb/>and emolument:  and the Public may reſt aſſured that what-ever ſum
+<lb/>may ariſe from the ſale of theſe Poems, or from the ſubſcription which
+<lb/>has been confined to a ſmall circle, will moſt carefully be laid out in
+<lb/>order to procure her ſome permanent eſtabliſhment, and reſcue her from
+<lb/>extreme poverty, which ſhe now experiences in a poor Hut on the <placeName>Com­
+<lb/>mons of Lyons</placeName>; where to earn a ſcanty livelihood ſhe keeps a ſmall
+<lb/>day ſchool, and receives a trifling pittance for teaching the poor chil­
+<lb/>dren in that neighbourhood to read and write:  nor is ſhe yet acquainted
+<lb/>with the good fortune that may attend this endeavour to ſerve her,—
+<lb/>the Editor having collected the Poems, and undertaken the publication of
+<lb/>them without her knowledge; waiting the ſucceſs which it is hoped
+<lb/>they will meet with from a generous Public, ever ready to aſſist Genius
+<lb/>when ſinking under poverty and diſtreſs.</p>
+      </div>
+      <mw type="catch" rend="align(right)case(allcaps)">A List</mw>
+      <pb n="v"/>
+      <milestone unit="sig" n="A3r"/>
+      <div type="prefatory">
+        <head rend="case(allcaps)"><hi rend="post(#rule)">A</hi> List
+<lb/>of
+<lb/>Patronage.
+</head>
+        <list rend="columns(2)">
+          <item>
+            <persName><hi rend="class(#DIC)">C</hi><hi rend="case(smallcaps)">ountess</hi> Bective</persName>
+          </item>
+          <item>
+            <persName>Counteſs Mt. Caſhell</persName>
+          </item>
+          <item>
+            <persName>Viſcounteſs de Veſci</persName>
+          </item>
+          <item>
+            <persName>Viſcounteſs Pery</persName>
+          </item>
+          <item>
+            <persName>Viſcounteſs Northland</persName>
+          </item>
+          <item>Hon. <persName>Mrs. Knox</persName></item>
+          <item>Hon. <persName>Mrs. Wm. Knox</persName></item>
+          <item>Hon. <persName>Mrs. Agar</persName></item>
+          <item>
+            <persName>Lady Barker</persName>
+          </item>
+          <item>
+            <persName>Mrs. Brownlow</persName>
+          </item>
+          <item>
+            <persName>Mrs. Latouche</persName>
+          </item>
+          <item>
+            <persName>Mrs. J. Latouche</persName>
+          </item>
+          <item>
+            <persName>Mrs. P. Latouch</persName>
+          </item>
+          <item>
+            <persName>Mrs. W. D. Latouche</persName>
+          </item>
+          <item>
+            <persName>Mrs. Monck</persName>
+          </item>
+          <item>
+            <persName>Mrs. Quin</persName>
+          </item>
+          <item>
+            <persName>Mrs. Alexander</persName>
+          </item>
+          <item>
+            <persName>Mrs. Veſey</persName>
+          </item>
+          <item>
+            <persName>Mrs. Frances Hamilton</persName>
+          </item>
+          <item>
+            <persName>Mrs. Forde</persName>
+          </item>
+          <item>
+            <persName>Mrs. Griffith</persName>
+          </item>
+          <cb/>
+          <item>
+            <persName>Mrs. Lefanu</persName>
+          </item>
+          <item>
+            <persName>Mrs. Lefanu</persName>
+          </item>
+          <item>
+            <persName>Mrs. Barry</persName>
+          </item>
+          <item>
+            <persName>Mrs. Walker</persName>
+          </item>
+          <item>
+            <persName>Miſs M. A. Latouche</persName>
+          </item>
+          <item>
+            <persName>Miſs G. Latouche</persName>
+          </item>
+          <item>
+            <persName>Miſs Henderſon</persName>
+          </item>
+          <item>
+            <persName>Miſs Pomeroy</persName>
+          </item>
+          <item>
+            <persName>Miſs Palmer</persName>
+          </item>
+          <item>
+            <persName>Miſs Brownrigg</persName>
+          </item>
+          <item>Archbiſhop of <placeName>Caſhell</placeName></item>
+          <item>Biſhop of <placeName>Kilmore</placeName></item>
+          <item>Solicitor General</item>
+          <item>
+            <persName>Rev. Mr. Walker</persName>
+          </item>
+          <item>
+            <persName>Sir. Rob. Hodgſon</persName>
+          </item>
+          <item>
+            <persName>Rev. Dr. Stock</persName>
+          </item>
+          <item>
+            <persName>Rev. Mr. Stokes</persName>
+          </item>
+          <item>
+            <persName>Rev. Dr. J. Buck</persName>
+          </item>
+          <item><persName>Richard Griffith</persName>, Eſq;</item>
+          <item><persName>Iſaac Ambroſe Eccles</persName>, Eſq;</item>
+          <item><persName>Thomas Tickell</persName>, Eſq;</item>
+          <item><persName>Wm. Green</persName>, Eſq;</item>
+        </list>
+      </div>
+      <pb n="vi"/>
+      <milestone unit="sig" n="A3v"/>
+    </front>
+    <mw type="catch" rend="align(right)case(allcaps)">Poems,</mw>
+    <pb n="1"/>
+    <milestone unit="sig" n="A4r"/>
+    <mw type="pageNum" rend="align(center)">1</mw>
+    <body>
+      <head rend="pre(#rule)case(allcaps)">Poems.</head>
+      <div type="poem">
+        <lg type="poem" subtype="stanzaic">
+          <head rend="align(center)slant(italic)pre(#rule)post(#rule)">On ſeeing the Print of a Female Figure in a weeping
+<lb/>Attitude, leaning on an Urn.</head>
+          <lg type="quatrain">
+            <l><hi rend="class(#DIC)">S</hi><hi rend="case(allcaps)">ay</hi>, pretty weeping figure, ſay,</l>
+            <l rend="indent(1)">For whom it is you mourn;</l>
+            <l>Or by whoſe aſhes thus you ſtay,</l>
+            <l rend="indent(1)">And grieving graſp his Urn?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Ah! ſay, when living by what name</l>
+            <l rend="indent(1)">He call'd you, or what part</l>
+            <l>Might he of the affections claim,</l>
+            <l rend="indent(1)">Of thy fond feeling Heart?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>In thy unſtudied flowing dreſs</l>
+            <l rend="indent(1)">No widows Weeds appear;</l>
+            <l>Then 'tis not Turtle's tenderneſs,</l>
+            <l rend="indent(1)">That doth demand a tear.</l>
+          </lg>
+          <mw type="catch" rend="align(right)">Nor</mw>
+          <pb n="2"/>
+          <milestone unit="sig" n="A4v"/>
+          <mw type="pageNum" rend="align(center)">2</mw>
+          <lg type="quatrain">
+            <l>Nor on thy finger ſtrait and long,</l>
+            <l rend="indent(1)">Appears the nuptial Ring;</l>
+            <l>Then 'tis not from a Mother's pang,</l>
+            <l rend="indent(1)">That there thy Sorrows ſpring.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Ah! did one Parent bear ye both?</l>
+            <l rend="indent(1)">Was it one Milk ye drew?</l>
+            <l>Was he Companion of thy Youth?</l>
+            <l rend="indent(1)">And infant play-mate too?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Wou'd he find pleaſure in thy mirth?</l>
+            <l rend="indent(1)">Wou'd he thy griefs conſole?</l>
+            <l>Or was his love as dews to Earth,</l>
+            <l rend="indent(1)">Refreſhing to thy Soul?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Was he protector, brother, friend,</l>
+            <l rend="indent(1)">In every ſenſe to thee?</l>
+            <l>Did blighting Death theſe comforts end</l>
+            <l rend="indent(1)">And rob thee of all three?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>If ſo, fair figure, drink thy tears</l>
+            <l rend="indent(1)">In Luxury of Woe:</l>
+            <l>While mine drawn on by kindred cares,</l>
+            <l>In plenteous ſtreams ſhall flow.</l>
+          </lg>
+        </lg>
+      </div>
+      <mw type="catch" rend="align(right)slant(italic)">By</mw>
+      <pb n="3"/>
+      <milestone unit="sig" n="B1r"/>
+      <mw type="pageNum" rend="align(center)">3</mw>
+      <div type="poem" rend="post(#rule)">
+        <lg type="poem" subtype="indeterminate">
+          <head rend="align(center)slant(italic)">By <persName rend="case(allcaps)">Ellen Taylor</persName>, on the Death of her Brother,
+<lb/>a <hi rend="case(allcaps)">Fragment</hi>.
+</head>
+          <lg type="indeterminate">
+            <l><hi rend="class(#DIC)">T</hi><hi rend="case(allcaps)">hy</hi>  Labour's o'er!  thy bitter Cup is paſt!</l>
+            <l>Yes, deareſt of my Soul, you've breath'd your laſt!</l>
+            <l>Thy feeble ſhatter'd frame has caſt away,</l>
+            <l>And flown thro' mercy to Eternal day:</l>
+            <l>No longer pain or ſickneſs doſt thou dread,</l>
+            <l>For thou haſt found a place to lay thy head.</l>
+            <l>No more thy Brother's unrelenting heart,</l>
+            <l>Shall ſlight thy wants, nor make thy boſom ſmart.</l>
+            <l>No longer indigence ſhall thee ſurround,</l>
+            <l>For thou with everlaſting wealth art crown'd.</l>
+            <l>Thus Reaſon bids me bend to Heaven's high will,</l>
+            <l>But this frail human nature claims thee ſtill;</l>
+            <l>And ſays, too ſoon thy deſtin'd courſe was run,</l>
+            <l>Too ſoon thy hapleſs Siſter left alone,—</l>
+            <l>As one who baniſh'd from his native Iſle,</l>
+            <l>Thro foreign parts to roam a poor exile;</l>
+            <l>No more the dear ſociety to prove,</l>
+            <l>Of thoſe who lov'd him—nor of those he lov'd—</l>
+            <l>How oft in ſilent ſorrow have I gaz'd</l>
+            <l>On thee—ſince dire conſumption on thee ſeiz'd,</l>
+            <l>Whoſe every ſtage did me of hope bereave,</l>
+            <l>For well I ſaw 'twould bring thee to thy grave.—</l>
+            <l>No language can expreſs my heart-felt pains,</l>
+            <l>When parting with thy lifeleſs, dear remains;</l>
+            <l>A laſt adieu! a final cold embrace;</l>
+            <l>No more to ſee thy beſt beloved face!</l>
+            <l>Say, dear departed ſhade, ſay wou'dſt thou know,</l>
+            <l>The one that was thy Siſter here below?</l>
+            <mw type="sig" rend="align(center)">B</mw>
+            <mw rend="align(right)break(no)" type="catch">In</mw>
+            <pb n="4"/>
+            <milestone unit="sig" n="B1v"/>
+            <mw type="pageNum" rend="align(center)">4</mw>
+            <l>In whom beyond all elſe thou did'ſt confide,</l>
+            <l>By thee, in thy diſtreſſes to abide;</l>
+            <l>Whoſe name in trembling, dying accents hung,</l>
+            <l>To the laſt moments on thy faltering tongue.</l>
+            <l>If ſhe thy fair example ſhou'd purſue,</l>
+            <l>And learn to live, and learn to die, like you:</l>
+            <l>When Death's kind hand may guide her to that ſhore,</l>
+            <l>Where now thou art:—there meet to part no more.</l>
+          </lg>
+        </lg>
+      </div>
+      <div type="poem" rend="post(#rule)">
+        <lg type="poem" subtype="stanzaic">
+          <head rend="align(center)slant(italic)">Written on <persName>Miſs
+<hi rend="case(allcaps)">Porter</hi></persName>, during a lingering Illneſs.
+</head>
+          <lg type="quatrain">
+            <l><hi rend="class(#DIC)">I</hi><hi rend="case(allcaps)">now</hi>  once more invoke the ſacred muſe,</l>
+            <l rend="indent(1)">Though I muſt own ſhe long has dormant lain,</l>
+            <l>Yet hope at preſent ſhe will not refuſe</l>
+            <l rend="indent(1)">Me to aſſiſt, in this my plaintive ſtrain.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Beneath you ſpire in the adjacent vale,</l>
+            <l rend="indent(1)">There ſtands a lonely hoſpitable feat;</l>
+            <l>Where art, and nature, try who'll moſt prevail,</l>
+            <l rend="indent(1)">To render each embelliſhment compleat:</l>
+          </lg>
+          <lg type="quatrain">
+            <l>The ſhorn hedge-rows, mantled o'er with green,</l>
+            <l rend="indent(1)">The ſhady limes, in niceſt order plac'd;</l>
+            <l>The Beech, and Elm, encreaſe the rural ſcene;</l>
+            <l rend="indent(1)">And all around proclaim the owner's taſte.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Ther once I lived, and though in ſervile ſtate,</l>
+            <l rend="indent(1)">My ſituation was to me no pain,</l>
+            <l>Nor did I then regret my ſordid fate;</l>
+            <l rend="indent(1)">For in that houſe, I could not feel the chain:</l>
+          </lg>
+          <mw type="catch" rend="align(right)">My</mw>
+          <pb n="5"/>
+          <milestone unit="sig" n="B2r"/>
+          <mw type="pageNum" rend="align(center)">5</mw>
+          <lg type="quatrain">
+            <l>My miſtreſs, ever tender, good and kind,</l>
+            <l rend="indent(1)">I there received her mild commands each day;</l>
+            <l>Nor did it once diſturb my peace of mind,</l>
+            <l rend="indent(1)">With utmoſt chearfulneſs her to obey.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>An only daughter did the Manſion grace,</l>
+            <l rend="indent(1)">Whoſe ſympathiſing ſoul and feeling heart,</l>
+            <l>To all around diffuſed nought but peace,</l>
+            <l rend="indent(1)">Nor could ſhe bear to ſee another ſmart.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>But ah! too ſoon, does lingering ſickneſs come,</l>
+            <l rend="indent(1)">And by degrees conſumes her tender prime;</l>
+            <l>For why the lady, in her youth and bloom,</l>
+            <l rend="indent(1)">Like froſt-nipt bloſſoms, dropt before her time.</l>
+          </lg>
+        </lg>
+      </div>
+      <div type="poem">
+        <lg type="poem" subtype="indeterminate">
+          <head rend="align(center)slant(italic)">On <persName>Miſs <hi rend="case(allcaps)">Porter</hi></persName>, who died of a Decay, the
+ Daughter of her
+<lb/><hi rend="case(allcaps)">Master</hi>.
+</head>
+          <lg type="indeterminate">
+            <l><hi rend="class(#DIC)">M</hi><hi rend="case(allcaps)">ay</hi>  he that cloaths the Lillies all in white,</l>
+            <l>Watch thee by day, and keep thy ſleep by night.</l>
+            <l>May guardian angels always guide thy youth,</l>
+            <l>Never to err from ſweet unſpotted truth.</l>
+            <l>May every happineſs on thee attend,</l>
+            <l>My benefactreſs, and my kindeſt friend:</l>
+            <l>Each pain that does her conſtitution mar,</l>
+            <l>Lord <persName rend="slant(italic)">Jeſus Chriſt</persName> may move them from her far;</l>
+            <l>If, Lord, thou wild, thou can'ſt her health reſtore;</l>
+            <l>Zeal, faith, and hope with mercy, can do more:</l>
+            <mw type="sig" rend="align(center)">B2</mw>
+            <mw rend="align(right)break(no)" type="catch">As</mw>
+            <pb n="6"/>
+            <milestone unit="sig" n="B2v"/>
+            <mw type="pageNum" rend="align(center)">6</mw>
+            <l>As round thy throne each Seraph bends the knee,</l>
+            <l>Proclaiming forth thy glorious Majeſty.</l>
+            <l>On her lock down, and by thy heavenly aid</l>
+            <l>Reſtore to health once more, the virtuous maid,</l>
+            <lg rend="braced()" type="tercet">
+              <l>To be the comfort of her parents age,</l>
+              <l>Each ſymptom of her malady aſſuage,</l>
+              <l>Return of health may every day preſage!</l>
+            </lg>
+          </lg>
+        </lg>
+      </div>
+      <div type="poem">
+        <lg type="poem" subtype="indeterminate">
+          <head rend="align(center)slant(italic)">This <hi rend="case(allcaps)">Poem</hi> addreſs'd to a
+<hi rend="case(allcaps)">Gentleman</hi>, who had
+<lb/>lent her ſome <hi rend="case(allcaps)">Books</hi>.
+</head>
+          <lg type="indeterminate">
+            <l><hi rend="class(#DIC)">M</hi><hi rend="case(allcaps)">uch</hi>  thanks, good Sir, I to you kindneſs owe,</l>
+            <l>For 'tis from thence my preſent conforts flow;</l>
+            <l>You are the ſource—from whence it doth proceed,</l>
+            <l>That I, when time permits—can fit and read</l>
+            <l>O'er all the elegance of mind, and pen</l>
+            <l>Of theſe moſt learned celebrated men.—</l>
+            <l>What energy of thought,—what mood and tenſe;</l>
+            <l>What nervous force, and well-digeſted ſenſe:</l>
+            <l>What intellectual ſtrength, and beauties ſhine,</l>
+            <l>Through every ſentence, and through every line!</l>
+            <l>Firſt <persName rend="case(smallcaps)">Milton</persName> doth me greet in words ſublime;</l>
+            <l>And ſoaring, leads me to the dawn of time.</l>
+            <l>My ſoul enraptur'd, through untrodden ways,</l>
+            <l>Here roves at large, in the enchanting maze,</l>
+            <l>To ſee Creation's infancy,—and view</l>
+            <l>Our common parents;—ere they ſorrow knew.</l>
+            <mw type="catch" rend="align(right)">To</mw>
+            <pb n="7"/>
+            <milestone unit="sig" n="B3r"/>
+            <mw type="pageNum" rend="align(center)">7</mw>
+            <l>To hear their converſation, meek and plain</l>
+            <l>Ere ſin or death did their dominion gain.—</l>
+            <l>See <persName rend="case(smallcaps)">Thomson</persName>, next; with plain familiar dreſs,</l>
+            <l>Tho' not ſo grand, more eaſy of acceſs:</l>
+            <l>Through ages more mature doth ſweetly trace</l>
+            <l>The numerous offspring of old <persName>Adam's</persName> race.</l>
+            <l>Deſpiſes no the Peaſant's humble lot,</l>
+            <l>Nor ſcorns to peep into the meaneſt cot;</l>
+            <l>Deſcribes the annual ſeaſons, as they roll,</l>
+            <l>With kind good-nature, mingled thro' the whole.—</l>
+            <l>School'd by adverſity, great <persName rend="case(smallcaps)">Young</persName> doth ſhew</l>
+            <l>What ſhort-liv'd happineſs we've here below:</l>
+            <l>With ſentiments exalted and refin'd,</l>
+            <l>Paints all the woes, that wait upon Mankind;</l>
+            <l>The complicated maſs, of grief and cares,</l>
+            <l>That doth attend us, thro' this vale of tears;</l>
+            <l>But oh! what conſolation doth he bring;</l>
+            <l>What healing comforts, thro' his words do ſpring,</l>
+            <l>When immortality he doth purſue,</l>
+            <l>And brings our promis'd glory into view?</l>
+            <l>That laſting ſeries of heav'nly joys,</l>
+            <l>So far ſuperior to all earthly toys;</l>
+            <l>Where pomp and precedence, for ever ceaſe,</l>
+            <l>And all alike enjoy eternal peace.—</l>
+            <l>Since, ſir, I ſtand indebted thus to thee;</l>
+            <l>For all that in theſe pages I now ſee:</l>
+            <l>Then may thy ſentimental ſoul ne'er know</l>
+            <l>The pangs, that do from adverſe fortune flow:</l>
+            <l>May all that's truly righteous good, and great</l>
+            <l>Here, and hereafter, be thy happy fate!</l>
+          </lg>
+        </lg>
+      </div>
+      <mw type="catch" rend="align(right)slant(italic)">Written</mw>
+      <pb n="8"/>
+      <milestone unit="sig" n="B3v"/>
+      <mw type="pageNum" rend="align(center)">8</mw>
+      <div type="poem" rend="post(#rule)">
+        <lg type="poem" subtype="stanzaic">
+          <head rend="align(center)slant(italic)">Written by the <hi rend="case(allcaps)">Barrow</hi> ſide, where ſhe was ſent to
+<lb/>waſh <hi rend="case(allcaps)">Linen</hi>.
+</head>
+          <lg type="quatrain">
+            <l><hi rend="class(#DIC)">T</hi><hi rend="case(allcaps)">hy</hi>  banks, O Barrow, ſure muſt be</l>
+            <l rend="indent(1)">The Muſes choiceſt haunt;</l>
+            <l>Elſe why ſo pleaſing thus to me,</l>
+            <l rend="indent(1)">Elſe why my Soul enchant!</l>
+          </lg>
+          <lg type="quatrain">
+            <l>To view thy dimpled ſurface here,</l>
+            <l rend="indent(1)">Fond fancy bids me ſtay;</l>
+            <l>But Servitude with brow auſtere,</l>
+            <l rend="indent(1)">Commands me ſtraight away:</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Were Lethe's virtues in thy ſtream,</l>
+            <l rend="indent(1)">How freely wou'd I drink,</l>
+            <l>That not ſo much as on the name</l>
+            <l rend="indent(1)">Of Books, I e'er might think.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>I can but from them learn to know</l>
+            <l rend="indent(1)">What's miſery compleat,</l>
+            <l>And feel more ſenſibly each blow,</l>
+            <l rend="indent(1)">Dealt by relentleſs fate.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>In them I oft have pleaſure found,</l>
+            <l rend="indent(1)">But now it's all quite fled,</l>
+            <l>With fluttering heart, I lay me down,</l>
+            <l rend="indent(1)">And riſe with aching head.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>For ſuch a turn, ill ſuits the ſphere</l>
+            <l rend="indent(1)">Of life in which I move,</l>
+            <l>And rather does a load of care,</l>
+            <l rend="indent(1)">Than any comfort prove.</l>
+          </lg>
+          <mw type="catch" rend="align(right)">Thrice</mw>
+          <pb n="9"/>
+          <milestone unit="sig" n="B4r"/>
+          <mw type="pageNum" rend="align(center)">9</mw>
+          <lg type="quatrain">
+            <l>Thrice happy ſhe condemned to move</l>
+            <l rend="indent(1)">Beneath the ſervile weight,</l>
+            <l>Whoſe thoughts ne'er ſoar one inch above,</l>
+            <l rend="indent(1)">The ſtandard of her fate.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>But far more happy is the ſoul,</l>
+            <l rend="indent(1)">Who feels the pleaſing ſenſe;</l>
+            <l>And can indulge without controul,</l>
+            <l rend="indent(1)">Each thought that flows from thence.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Since nought of theſe my portion is,</l>
+            <l rend="indent(1)">But the reverſe of each;</l>
+            <l>That I ſhall taſte but little bliſs,</l>
+            <l rend="indent(1)">Experience doth me teach.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Cou'd cold inſenſibility,</l>
+            <l rend="indent(1)">Thro' my whole frame take place;</l>
+            <l>Sure then from grief I might be free,</l>
+            <l rend="indent(1)">Yes, then I'd hope for peace.</l>
+          </lg>
+        </lg>
+      </div>
+      <div type="poem" rend="post(#rule)">
+        <lg type="poem" subtype="stanzaic">
+          <head rend="align(center)slant(italic)">On the Death of <persName>Mr.
+<hi rend="case(allcaps)">Mark</hi></persName>, a Merchant in <placeName rend="case(allcaps)">Limerick</placeName>.</head>
+          <lg type="quatrain">
+            <l><hi rend="class(#DIC)">T</hi><hi rend="case(allcaps)">he</hi> Publick papers this ſad news doth tell,</l>
+            <l rend="indent(1)">Thy mortal part is numbered with the dead:</l>
+            <l>Laid in the ſilent grave, at eaſe to dwell;</l>
+            <l rend="indent(1)">But precious ſpirit, whither art thou fled?</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Say, haſt thou entered the Celeſtial gate,</l>
+            <l rend="indent(1)">Bleſt with the Crown, that's to the Righteous due;</l>
+            <l>Or doſt thou on thy darling daughter wait,</l>
+            <l rend="indent(1)">And watch her ſteps as guardian Angels do?</l>
+          </lg>
+          <mw type="catch" rend="align(right)">What,</mw>
+          <pb n="10"/>
+          <milestone unit="sig" n="B4v"/>
+          <mw type="pageNum" rend="align(center)">10</mw>
+          <lg type="quatrain">
+            <l>What, tho' no fable Eſcutcheons grace thy Bier!</l>
+            <l rend="indent(1)">Nor creſted Marble do thy virtues tell!</l>
+            <l>Yet, ſhall they ever flouriſh freſh and fair,</l>
+            <l rend="indent(1)">As the green turf, that o'er thy breaſt doth ſwell.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>For thou wer't all that juſtice cou'd commend,</l>
+            <l rend="indent(1)">Wer't as the Turtle conſtant to thy mate;</l>
+            <l>A tender Father and a faithful friend;</l>
+            <l rend="indent(1)">Nor ſtood the poor, unheeded at thy gate.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Such as in ſervile ſtation eat thy bread;</l>
+            <l rend="indent(1)">Thy courteous carriage tow'rds them, was ſo mild,</l>
+            <l>As fill'd their hearts with reverence, not dread;</l>
+            <l>For thou wert ever gentle, good and kind.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>And tho' thy Ships with Indian treaſures fill'd,</l>
+            <l rend="indent(1)">Did thro' the parted waves in grandeur ride;</l>
+            <l>Yet did thy meek, thy humble ſoul ne'er yield,</l>
+            <l rend="indent(1)">To aught like vanity, or ſordid pride.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Thy morn, thy noon, and to thy lateſt eve,</l>
+            <l rend="indent(1)">Blameleſs as any born of <persName>Adam's</persName> race;</l>
+            <l>With chearfulneſs thy mortal life did give,</l>
+            <l rend="indent(1)">To enter that of everlaſting peace.</l>
+          </lg>
+        </lg>
+      </div>
+      <div type="poem">
+        <lg type="poem" subtype="stanzaic">
+          <head rend="align(center)slant(italic)">On the Death of the <persName>Rev. Mr. ――</persName></head>
+          <lg type="quatrain">
+            <l><hi rend="class(#DIC)">I</hi><hi rend="case(allcaps)">thee</hi> again invoke, thou Heaven-born maid!</l>
+            <l rend="indent(1)">Yes, I once more do thy aſſiſtance aſk;</l>
+            <l>And if thou do'ſt refuſe to lend thy aid;</l>
+            <l rend="indent(1)">My feeble pen's unequal to the taſk.</l>
+          </lg>
+          <mw type="catch" rend="align(right)">To</mw>
+          <pb n="11"/>
+          <milestone unit="sig" n="C1r"/>
+          <mw type="pageNum" rend="align(center)">11</mw>
+          <lg type="quatrain">
+            <l>To ſing of Virtues quite to me unknown,</l>
+            <l rend="indent(1)">Save only information brought by fame,</l>
+            <l>Of real merit which to Heaven is flown,</l>
+            <l rend="indent(1)">And left behind a never dying name.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Scarce had the grey-ey'd morn ſprang from above,</l>
+            <l rend="indent(1)">Scarce had the Lark his mattin ſong began;</l>
+            <l>When the kind Doctor full of truth and love,</l>
+            <l rend="indent(1)">Had rode abroad to ſee the bed-ſick man.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>For ever watchful o'er the weighty charge,</l>
+            <l rend="indent(1)">That was to him, by Providence aſſign'd;</l>
+            <l>His chiefeſt aim was to impart at large</l>
+            <l rend="indent(1)">Pure charity, and love, to all mankind.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>When any doubts of ſacred truths aroſe</l>
+            <l rend="indent(1)">The afflicted mind he'd inſtantly conſole,</l>
+            <l>For true reveal'd Religion he'd diſcloſe,</l>
+            <l rend="indent(1)">And to the Saviour, re-unite the ſoul.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>The Widow, and the orphan, when diſtreſs'd,</l>
+            <l rend="indent(1)">From his benevolence ſoon found relief;</l>
+            <l>For all their woes or anguiſh he redreſs'd,</l>
+            <l rend="indent(1)">And huſh'd their ſorrows, and appeas'd their grief.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>What numbers of the indigent and poor,</l>
+            <l rend="indent(1)">From his kind hand receiv'd their daily bread;</l>
+            <l>For of his Wealth he never did make ſtore;</l>
+            <l rend="indent(1)">But clothed the naked, and the hungry fed.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>For many years he lived in Wedlock's bands,</l>
+            <l rend="indent(1)">In which he ne'er had aught him to perplex;</l>
+            <l>For the kind Fair to whom he join'd his hand,</l>
+            <l rend="indent(1)">Was bleſt with all that's pleaſing in her ſex.</l>
+          </lg>
+          <mw type="sig" rend="align(center)">C</mw>
+          <mw type="catch" rend="align(right)">And</mw>
+          <pb n="12"/>
+          <milestone unit="sig" n="C1v"/>
+          <mw type="pageNum" rend="align(center)">12</mw>
+          <lg type="quatrain">
+            <l>And though dame Nature was right well inclin'd,</l>
+            <l rend="indent(1)">To deck her outward form with every grace;</l>
+            <l>Yet the more laſting beauties of the mind</l>
+            <l rend="indent(1)">By far out-ſhone the charms of her fair face.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>In early youth, their tender ſouls were join'd,</l>
+            <l rend="indent(1)">By the ſoft ties of true and mutual love;</l>
+            <l>Which time had wrought to friendſhip ſo refin'd,</l>
+            <l rend="indent(1)">That nothing leſs than death could it remove.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>But ah! that ſad, that inauſpicious day</l>
+            <l rend="indent(1)">Was ſet apart to end his precious life,</l>
+            <l>To lay him low, to moulder into clay,</l>
+            <l rend="indent(1)">And tear him from his fond and virtuous wife.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Now winter's eve, deep clothed in midnight ſhade,</l>
+            <l rend="indent(1)">Which often had the imagination ſcared,</l>
+            <l>Is noontide fun in brighteſt beams arrayed,</l>
+            <l rend="indent(1)">When to the colour of her fate compar'd.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Her ſorrows at this unexpected blow,</l>
+            <l rend="indent(1)">Upon this earth admits of no relief,</l>
+            <l>Save what from Reaſon and Religion flow;</l>
+            <l rend="indent(1)">'Tis they alone can palliate her grief.</l>
+          </lg>
+          <lg type="quatrain">
+            <l>Until her mortal part is done away;</l>
+            <l rend="indent(1)">Then may the Angels, and Arch-Angels wait,</l>
+            <l>And waft her ſoul to Realms of endleſs day,</l>
+            <l rend="indent(1)">To meet her love beyond the reach of fate.</l>
+          </lg>
+        </lg>
+      </div>
+      <mw type="catch" rend="align(right)slant(italic)">Written</mw>
+      <pb n="13"/>
+      <milestone unit="sig" n="C2r"/>
+      <mw type="pageNum" rend="align(center)">13</mw>
+      <div type="poem">
+        <lg type="poem" subtype="indeterminate">
+          <head rend="align(center)slant(italic)">Written to a <hi rend="case(allcaps)">Fellow Servant</hi>, who went to
+<lb/><placeName rend="case(allcaps)">Dublin</placeName> to get a <hi rend="case(allcaps)">Place</hi>, or to viſit her
+<lb/><hi rend="case(allcaps)">Friends</hi>.
+</head>
+          <lg type="indeterminate">
+            <l><hi rend="class(#DIC)">W</hi><hi rend="case(allcaps)">hilst</hi>  thou, dear maid, art pleas'd with all things
+<lb rend="align(indent)indent(1)pos(down)"/>new,</l>
+            <l>Having our grand Metropolis in view;</l>
+            <l>This Manſion here ſeems lonely quite to me,</l>
+            <l>And looks unfurniſh'd when not graced by thee,</l>
+            <l>Yet ſtill ſome ſimilies I daily find,</l>
+            <l>That bring thy Image ſtrongly to my mind:</l>
+            <l>Pomona now has clothed the friendly ſhade,</l>
+            <l>And Flora too has dreſs'd the fragrant mead,</l>
+            <l>And when I ſee their verdure of a truth,</l>
+            <l>Methinks they ſeem juſt like thy blooming youth.</l>
+            <l>Above, the ſky is all ſerene and fair,</l>
+            <l>Which does a likeneſs of thy aſpect wear;</l>
+            <l>And when below I ſee the flowing tide,</l>
+            <l>How ſmooth and void of tumult, it doth glide;</l>
+            <l>Viewing its glaſſy ſurface there I find,</l>
+            <l>A ſtriking emblem of thy gentle mind.</l>
+            <l>Thus every pleaſing object that I ſee,</l>
+            <l>Reminds me ſtill of friendſhip, and of thee;</l>
+            <l>The ſprightly <persName>Mary</persName> is no longer gay,</l>
+            <l>Her looks in penſive ſilence ſeem to ſay,</l>
+            <l>That when <persName>Rebecca</persName>'s abſent from her dome,</l>
+            <l>The quinteſcence of friendſhip's not at home;</l>
+            <l>But when thy tedious viſit's at an end,</l>
+            <l>Once more ſhe'll ſee her ſiſter, and her friend;</l>
+            <l>Her wonted gaiety, will then return,</l>
+            <l>Nor will ſhe more thy irkſome abſence mourn,</l>
+            <l>But gladly meeting you, with one accord,</l>
+            <l>We'll join to thank the everlaſting Lord.</l>
+          </lg>
+        </lg>
+      </div>
+      <mw type="catch" rend="align(right)slant(italic)">An</mw>
+      <pb n="14"/>
+      <milestone unit="sig" n="C2v"/>
+      <mw type="pageNum" rend="align(center)">14</mw>
+      <div type="poem">
+        <lg xml:id="poem.01" type="poem" subtype="acrostic">
+          <head rend="align(center)slant(italic)">An <hi rend="case(allcaps)">Acrostick</hi>, extempore, written by
+<persName rend="case(allcaps)">Ellen
+<lb/>Taylor</persName>, on a beautiful little <hi rend="case(allcaps)">Boy</hi>.
+</head>
+          <lg type="indeterminate">
+            <l><hi rend="class(#DIC)">G</hi><hi rend="case(allcaps)">row</hi> up, ſweet Babe, and may thy pleaſing grace,</l>
+            <l>Each hour that o'er thy head doth roll, encreaſe:</l>
+            <l>On thee may Heaven its choiceſt gifts beſtow,</l>
+            <l>Replete with virtue, may thy paſſions flow;</l>
+            <l>Good fortune on thy riſing years await,</l>
+            <l>Exalted bliſs and happineſs compleat.</l>
+          </lg>
+          <lg type="indeterminate">
+            <l rend="indent(1)">Child of thy Father's kindeſt deareſt love,</l>
+            <l>Heir to his every virtue may you prove;</l>
+            <l>And when ſet down to Science, and to Art,</l>
+            <l>Perfection be thy lot in every part:</l>
+            <lg rend="braced()" type="tercet">
+              <l>May thy fond Mother live her ſon to ſee,</l>
+              <l>An ornament to fair Society!</l>
+              <l>Nor leſs than what I wiſh, may wait on thee!</l>
+            </lg>
+          </lg>
+        </lg>
+      </div>
+      <trailer rend="align(center)case(allcaps)">
+Finis.
+</trailer>
+      <pb n="15"/>
+      <milestone unit="sig" n="C3r"/>
+    </body>
+  </text>
+</TEI>
