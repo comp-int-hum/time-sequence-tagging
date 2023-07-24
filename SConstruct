@@ -24,6 +24,9 @@ import pickle
 # example, changing the number of folds).
 vars = Variables("custom.py")
 vars.AddVariables(
+    ("DATA_PATH", "", "/export/data/english/women_writers.tgz"), # correct
+    ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
+    ("LOCAL_DATA", "", "./data/warren.adulateur.xml"),
     ("OUTPUT_WIDTH", "", 5000),
     ("MODEL_TYPES", "", ["naive_bayes", "neural"]),
     ("PARAMETER_VALUES", "", [0.1, 0.5, 0.9]),
@@ -45,21 +48,9 @@ env = Environment(
     # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
-        "CreateData" : Builder(
-            action="python scripts/create_data.py --outputs ${TARGETS[0]}"
+        "ProcessData" : Builder(
+            action="python scripts/create_data.py --data_path ${SOURCES[0]} --outputs ${TARGETS}"
         ),
-        "ShuffleData" : Builder(
-            action="python scripts/shuffle_data.py --dataset ${SOURCES[0]} --outputs ${TARGETS}"
-        ),
-        "TrainModel" : Builder(
-            action="python scripts/train_model.py --parameter_value ${PARAMETER_VALUE} --model_type ${MODEL_TYPE} --train ${SOURCES[0]} --dev ${SOURCES[1]} --outputs ${TARGETS[0]}"            
-        ),
-        "ApplyModel" : Builder(
-            action="python scripts/apply_model.py --model ${SOURCES[0]} --test ${SOURCES[1]} --outputs ${TARGETS[0]}"
-        ),
-        "GenerateReport" : Builder(
-            action="python scripts/generate_report.py --experimental_results ${SOURCES} --outputs ${TARGETS[0]}"
-        )
     }
 )
 
@@ -80,44 +71,5 @@ env = Environment(
 # Note also how the outputs ("targets") from earlier invocation are used as the inputs
 # ("sources") to later ones, and how some outputs are also gathered into the "results"
 # variable, so they can be summarized together after each experiment runs.
-results = []
-for dataset_name in env["DATASETS"]:
-    data = env.CreateData("work/${DATASET_NAME}/data.txt", [], DATASET_NAME=dataset_name)
-    for fold in range(1, env["FOLDS"] + 1):
-        train, dev, test = env.ShuffleData(
-            [
-                "work/${DATASET_NAME}/${FOLD}/train.txt",
-                "work/${DATASET_NAME}/${FOLD}/dev.txt",
-                "work/${DATASET_NAME}/${FOLD}/test.txt",
-            ],
-            data,
-            FOLD=fold,
-            DATASET_NAME=dataset_name,
-        )
-        for model_type in env["MODEL_TYPES"]:
-            for parameter_value in env["PARAMETER_VALUES"]:
-                model = env.TrainModel(
-                    "work/${DATASET_NAME}/${FOLD}/${MODEL_TYPE}/${PARAMETER_VALUE}/model.bin",
-                    [train, dev],
-                    FOLD=fold,
-                    DATASET_NAME=dataset_name,
-                    MODEL_TYPE=model_type,
-                    PARAMETER_VALUE=parameter_value,
-                )
-                results.append(
-                    env.ApplyModel(
-                        "work/${DATASET_NAME}/${FOLD}/${MODEL_TYPE}/${PARAMETER_VALUE}/applied.txt",
-                        [model, test],
-                        FOLD=fold,
-                        DATASET_NAME=dataset_name,
-                        MODEL_TYPE=model_type,
-                        PARAMETER_VALUE=parameter_value,                        
-                    )
-                )
 
-# Use the list of applied model outputs to generate an evaluation report (table, plot,
-# f-score, confusion matrix, whatever makes sense).
-report = env.GenerateReport(
-    "work/report.txt",
-    results
-)
+env.ProcessData(source = env["DATA_PATH"], target = "test.txt")
