@@ -5,10 +5,8 @@ import json
 import re
 # import xml.etree.ElementTree as ET
 
-def preprocess(fp):
+def get_metadata(fp):
     soup = BeautifulSoup(fp, features = "xml")
-
-
     # only considering body (front, body, back)'
     # note: there may be more body elements embedded; ex: a letter included within a novel
     body = soup.find('body')
@@ -16,19 +14,25 @@ def preprocess(fp):
     if body:
         form = body.get("type")
         if not form:
-            first_div = body.find("div")
-            sanity_check = body.find("div", attrs={"type":True})
-            if first_div != sanity_check:
-                print(f"First div: {first_div}")
-                print(f"Sanity check: {sanity_check}")
+            # --Sanity Check--:
+            # first_div = body.find("div")
+            # first_div_type = body.find("div", attrs={"type":True})
+            # if first_div != first_div_type:
+            #     print(f"First div: {first_div}")
+            #     print(f"Sanity check: {sanity_check}")
+            div = body.find("div", attrs={"type":True})
+            form = div.type
 
-
+        return form
+    
+    return None
         
-        # # TODO: consider better solution to connecting words between pages
+        # # TODO: consider better solution to connecting words between pages``
         # mw_tags = soup.find_all('mw')
         # for mw_tag in mw_tags:
         #     mw_tag.extract()
-        
+
+def get_metadata(fp):
 
 
     
