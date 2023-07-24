@@ -69,7 +69,7 @@ if __name__ == "__main__":
         for tar_name in args.data_path:
             tar = tarfile.open(tar_name)
             print("HI")
-            print(len(tar.getmembers())
+            print(len(tar.getmembers()))
 
             
             for member in tar.getmembers():
