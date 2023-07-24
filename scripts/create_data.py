@@ -35,9 +35,10 @@ def get_metadata(fp):
     data = {} 
     soup = BeautifulSoup(fp, features="xml")
     data["title"] = soup.title.string
-    data["author"] = soup.author
+    author = soup.author
     if author:
-        data["author"] = author.persName.string
+        author = author.persName.string
+    data["author"] = author
     data["edition"] = soup.edition
     data["imprint_year"] = soup.imprint.date
     data["publisher"] = soup.publisher
