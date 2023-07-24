@@ -13,15 +13,14 @@ def preprocess(fp):
     # note: there may be more body elements embedded; ex: a letter included within a novel
     body = soup.find('body')
 
-    print(type(body))
-
     if body:
         form = body.get("type")
-        # if not form:
-        first_div = body.find("div")
-        sanity_check = body.find("div", attrs={"type":True})
-        print(fp.name)
-        assert(first_div == sanity_check)
+        if not form:
+            first_div = body.find("div")
+            sanity_check = body.find("div", attrs={"type":True})
+            if first_div != sanity_check:
+                print(f"First div: {first_div}")
+                print(f"Sanity check: {sanity_check}")
 
 
         
@@ -68,14 +67,11 @@ if __name__ == "__main__":
         print("Found tarfile")
         for tar_name in args.data_path:
             tar = tarfile.open(tar_name)
-            print("HI")
-            print(len(tar.getmembers()))
-
-            
             for member in tar.getmembers():
-                file = tar.extractfile(member)
-                assert(file)
-                preprocess(file)
+                if not member.isdir():
+                    file = tar.extractfile(member)
+                    assert(file)
+                    preprocess(file)
 
     else:
         print("Using regular files")
