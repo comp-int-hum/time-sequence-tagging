@@ -65,13 +65,20 @@ if __name__ == "__main__":
     args, rest = parser.parse_known_args()
 
     if tarfile.is_tarfile(args.data_path[0]):
+        print("Found tarfile")
         for tar_name in args.data_path:
             tar = tarfile.open(tar_name)
+            print("HI")
+            print(len(tar.getmembers())
+
+            
             for member in tar.getmembers():
                 file = tar.extractfile(member)
+                assert(file)
                 preprocess(file)
 
     else:
+        print("Using regular files")
         with open(args.data_path[0], 'r') as fp:
             soup = BeautifulSoup(fp, features="xml") # file, parser
             body = soup.find('body')
