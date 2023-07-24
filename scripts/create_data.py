@@ -40,8 +40,20 @@ def get_metadata(fp):
         author = author.persName.string
     data["author"] = author
     data["edition"] = soup.edition
-    data["imprint_year"] = soup.imprint.date
-    data["publisher"] = soup.publisher
+    imprint = soup.imprint
+    data["pub_info"] = None
+    if imprint:
+        pub_info = {}
+        publishers = []
+        if imprint.publisher:
+            # persons = imprint.publisher.find_all('persName')
+            # for pers in persons:
+                # publishers.append(pers.string)
+            publishers = [pers.string for pers in imprint.publisher.find_all('persName')]
+        pub_info["publisher"] = publishers
+        pub_info["pubPlace"] = imprint.pubPlace.string
+        pub_info["imprint_year"] = imprint.date.string
+        data["pub_info"] = pub_info
     data["form"] = get_form(soup)
 
     return data
