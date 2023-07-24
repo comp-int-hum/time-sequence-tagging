@@ -5,7 +5,7 @@ import json
 import re
 # import xml.etree.ElementTree as ET
 
-def get_metadata(fp):
+def get_form(fp):
     soup = BeautifulSoup(fp, features = "xml")
     # only considering body (front, body, back)'
     # note: there may be more body elements embedded; ex: a letter included within a novel
@@ -31,9 +31,16 @@ def get_metadata(fp):
         # for mw_tag in mw_tags:
         #     mw_tag.extract()
 
+def get_metadata(fp):
+    soup = BeautifulSoup(fp, features="xml")
+    author = soup.author.persName.string
+    title = soup.title
+    edition = soup.edition
+    imprint_year = soup.imprint.date
+    publisher = soup.publisher.findall('persName')
+    print(f"Title: {title} author: {author}")
+    assert(edition and imprint_year and publisher)
 
-    
-    
 
 
 
