@@ -5,8 +5,7 @@ import json
 import re
 # import xml.etree.ElementTree as ET
 
-def get_form(fp):
-    soup = BeautifulSoup(fp, features = "xml")
+def get_form(soup):
     # only considering body (front, body, back)'
     # note: there may be more body elements embedded; ex: a letter included within a novel
     body = soup.find('body')
@@ -32,14 +31,19 @@ def get_form(fp):
         #     mw_tag.extract()
 
 def get_metadata(fp):
+
+    data = {} 
     soup = BeautifulSoup(fp, features="xml")
-    author = soup.author.persName.string
-    title = soup.title
-    edition = soup.edition
-    imprint_year = soup.imprint.date
-    publisher = soup.publisher.findall('persName')
-    print(f"Title: {title} author: {author}")
-    assert(edition and imprint_year and publisher)
+    data["title"] = soup.title.string
+    data["author"] = soup.author
+    if author:
+        data["author"] = author.persName.string
+    data["edition"] = soup.edition
+    data["imprint_year"] = soup.imprint.date
+    data["publisher"] = soup.publisher
+    data["form"] = get_form(soup)
+
+    return data
 
 
 
@@ -78,7 +82,7 @@ if __name__ == "__main__":
             for member in tar.getmembers():
                 if not member.isdir():
                     file = tar.extractfile(member)
-                    assert(file)
+                    print(f"Name: {member.name}")
                     get_metadata(file)
 
     else:
@@ -93,7 +97,7 @@ if __name__ == "__main__":
     print(f"Data path: {args.data_path[0]}")
     
     
-    # TODO: hink more about resolution to this
+    # TODO: think more about resolution to this
     
             # data_dict[str(i)] = paragraph_text
             # print(data_dict[str(i)])
