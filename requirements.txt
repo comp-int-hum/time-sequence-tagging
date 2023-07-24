@@ -1,2 +1,3 @@
 steamroller
 beautifulsoup4
+lxml
