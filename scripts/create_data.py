@@ -10,7 +10,7 @@ def get_metadata(fp):
     # only considering body (front, body, back)'
     # note: there may be more body elements embedded; ex: a letter included within a novel
     body = soup.find('body')
-
+    form = None
     if body:
         form = body.get("type")
         if not form:
@@ -21,18 +21,15 @@ def get_metadata(fp):
             #     print(f"First div: {first_div}")
             #     print(f"Sanity check: {sanity_check}")
             div = body.find("div", attrs={"type":True})
-            form = div.type
+            if div:
+                form = div.type
 
-        return form
-    
-    return None
+    return form
         
         # # TODO: consider better solution to connecting words between pages``
         # mw_tags = soup.find_all('mw')
         # for mw_tag in mw_tags:
         #     mw_tag.extract()
-
-def get_metadata(fp):
 
 
     
@@ -75,7 +72,7 @@ if __name__ == "__main__":
                 if not member.isdir():
                     file = tar.extractfile(member)
                     assert(file)
-                    preprocess(file)
+                    get_metadata(file)
 
     else:
         print("Using regular files")
