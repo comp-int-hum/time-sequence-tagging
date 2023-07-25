@@ -111,12 +111,6 @@ if __name__ == "__main__":
     data_dict = {} # Used for json dump at end
     
     
-    # TODO: think more about resolution to this
-    
-            # data_dict[str(i)] = paragraph_text
-            # print(data_dict[str(i)])
-            # i+=1
-
     
     # with open(args.outputs, "w") as output:
     #     json.dump(data_dict, output)
