@@ -42,7 +42,6 @@ def get_metadata(soup):
         pub_info["imprint_year"] = imprint.date.string
         data["pub_info"] = pub_info
     data["form"] = get_form(soup)
-
     return data
 
 
@@ -98,14 +97,13 @@ if __name__ == "__main__":
                     soup = BeautifulSoup(fp, features="xml")
                     
                     print(f"Name: {member.name}, form: {get_form(soup)}")
-                    # metadata = get_metadata(soup)
-                    # if metadata["form"] == "chapter":
-                      #  print("TRUE")
-                       #  if args.granularity == "paragraph":
-                         #   segments = segment_paragraphs(soup)
-                       #  else:
-                         #   segments = segment_chapters(soup)
-                       # result.append({'metadata': metadata, 'segments': segments})
+                    data = get_metadata(soup)
+                    if data["form"] == "chapter":
+                        if args.granularity == "paragraph":
+                           data["segments"] = segment_paragraphs(soup)
+                        else:
+                           data["segments"] = segment_chapters(soup)
+                        result.append(data)
 
     else:
         print("Using regular files")
