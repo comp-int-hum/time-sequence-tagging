@@ -92,6 +92,8 @@ def segment_chapters(soup):
                 paragraph_dict[pnum] = paragraph_text
             chapter_dict["ch" + str(cnum)] = paragraph_dict
 
+    return chapter_dict
+
 
 if __name__ == "__main__":
 
