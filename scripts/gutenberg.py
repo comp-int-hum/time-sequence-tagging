@@ -5,6 +5,7 @@ import tarfile
 import json
 import re
 import os
+import csv
 
 # see https://github.com/comp-int-hum/gutenberg-ns-extractor/blob/045bddb8d3b264ea99a33063df5a4b3f2e7134bc/scripts/produce_sentence_corpus.py#L19-L21
 def parse_gb_directory(base_dir, text_num):
@@ -73,25 +74,36 @@ def get_chapters(soup, ch_links):
     # <p class="toc">
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
-    parser.add_argument("--input", dest="input", help="input html file to be processed")
+    parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
+    parser.add_argument("--input", dest="input", help="csv file")
     parser.add_argument("--output", dest="output", help="Name of output file")
+    parser.add_argument("--local", dest="local", nargs="?", help="local files")
     args, rest = parser.parse_known_args()
 
     result = {}
-    with open(args.input, "r") as fp:
-        soup = BeautifulSoup(fp, "html.parser")
-        result = get_metadata(soup)
-        chapter_links = get_chapter_links(soup)
-        result["segments"] = get_chapters(soup, chapter_links)
+    with open(args.input) as catalog:
+        csv_reader = csv.DictReader(catalog)
+        for row in csv_reader:
+            file_path = parse_gb_directory(args.base_dir, row["Text#"])
+            print(file_path)
+
+
+
+
+
+
+
+    # with open(args.input, "r") as fp:
+    #     soup = BeautifulSoup(fp, "html.parser")
+    #     result = get_metadata(soup)
+    #     chapter_links = get_chapter_links(soup)
+    #     result["segments"] = get_chapters(soup, chapter_links)
 
     with open(args.output, "w") as output:
         json.dump(result, output)
                 
 
     # html_files = find_html_files(args.base_dir)
-
         

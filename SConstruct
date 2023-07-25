@@ -24,12 +24,12 @@ import pickle
 # example, changing the number of folds).
 vars = Variables("custom.py")
 vars.AddVariables(
-    ("DATA_PATH", "", "/export/data/english/women_writers.tgz"), # correct
-    ("DATA_PATH_2", "", "/export/large_corpora/gutenberg/"),
+    ("DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
+    ("DATAPATH_2", "", "/export/large_corpora/gutenberg/"),
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("LOCAL_PG", "", "/export/large_corpora/gutenberg/2/7/0/2701/2701-h/2701-h.htm"),
-    ("OUTPUT_WIDTH", "", 5000),
+    ("PG_CATALOG", "", "pg_catalog.csv"),
     ("SEGMENT_BY_CH", "", "chapter"),
     ("SEGMENT_BY_PG", "", "paragraph"),
 )
@@ -50,7 +50,7 @@ env = Environment(
     BUILDERS={
         "ProcessData" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/gutenberg.py --input ${SOURCES} --output ${TARGETS}",
+            action="python scripts/gutenberg.py --base_dir ${DATAPATH_2} $--input ${SOURCES} --output ${TARGETS}",
         ),
     }
 )
@@ -74,4 +74,4 @@ env = Environment(
 # variable, so they can be summarized together after each experiment runs.
 
 # env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
-env.ProcessData(source = env["LOCAL_PG"] , target = "mobydick.txt")
+env.ProcessData(source = env["PG_CATALOG"] , target = "mobydick.txt")
