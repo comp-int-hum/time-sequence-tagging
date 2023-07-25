@@ -25,9 +25,10 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("DATA_PATH", "", "/export/data/english/women_writers.tgz"), # correct
-    ("DATA_PATH_2", "", "/export/large_corpora/gutenberg/")
+    ("DATA_PATH_2", "", "/export/large_corpora/gutenberg/"),
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
+    ("LOCAL_PG", "", "/export/large_corpora/gutenberg/2/7/0/2701/2701-h/2701-h.htm"),
     ("OUTPUT_WIDTH", "", 5000),
     ("SEGMENT_BY_CH", "", "chapter"),
     ("SEGMENT_BY_PG", "", "paragraph"),
@@ -73,4 +74,4 @@ env = Environment(
 # variable, so they can be summarized together after each experiment runs.
 
 # env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
-env.ProcessData(source = env["DATA_PATH_2"] , target = "test.txt")
+env.ProcessData(source = env["LOCAL_PG"] , target = "test.txt")

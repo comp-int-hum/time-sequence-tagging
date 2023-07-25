@@ -18,12 +18,21 @@ def find_html_files(base_dir):
 				html_files.append(os.path.join(cpath, file))
 	return html_files
 
-
+def process(soup):
+        
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
+	# parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
+        parser.add_argument("--input", dest="input", help="input html file to be processed")
 	parser.add_argument("--output", dest="output", help="Name of output file")
+        
 	args, rest = parser.parse_known_args()
 
-	html_files = find_html_files(args.base_dir)
+        with open(args.input, "r") as fp:
+                soup = BeautifulSoup(fp, "xml")
+                
+
+	# html_files = find_html_files(args.base_dir)
+
+        
