@@ -48,7 +48,7 @@ def get_metadata(soup):
 
 
 
-def segment_paragraphs(soup): # passing in filepointer
+def segment_paragraphs(soup):
 
     paragraph_dict = {} # key=paragraph num, value=paragraph text
 
@@ -93,7 +93,7 @@ def segment_chapters(soup):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--outputs", dest="outputs", help="Output files")
+    parser.add_argument("--output", dest="output", help="Output files")
     parser.add_argument("--data_path", dest="data_path", nargs="+", help="path to data files")
     parser.add_argument("--granularity", dest="granularity", choices=["chapter", "paragraph"], help="chapter or paragraph")
     args, rest = parser.parse_known_args()
@@ -107,10 +107,9 @@ if __name__ == "__main__":
                 if not member.isdir():
                     fp = tar.extractfile(member)
                     soup = BeautifulSoup(fp, features="xml")
-                    
                     print(f"Name: {member.name}, form: {get_form(soup)}")
                     data = get_metadata(soup)
-                    if data["form"] == "chapter":
+                    if data["form"] == "chapter": # non-ideal hard coding
                         if args.granularity == "paragraph":
                            data["segments"] = segment_paragraphs(soup)
                         else:
@@ -128,7 +127,7 @@ if __name__ == "__main__":
 
     print(f"RESULT LENGTH: {len(result)}")
     
-    with open(args.outputs, "w") as output:
+    with open(args.output, "w") as output:
         json.dump(result, output)
 
     

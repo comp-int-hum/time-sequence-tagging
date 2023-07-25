@@ -25,6 +25,7 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("DATA_PATH", "", "/export/data/english/women_writers.tgz"), # correct
+    ("DATA_PATH_2", "", "/export/data/english/gutenberg/")
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("OUTPUT_WIDTH", "", 5000),
@@ -47,7 +48,7 @@ env = Environment(
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
         "ProcessData" : Builder(
-            action="python scripts/create_data.py --data_path ${SOURCES} --outputs ${TARGETS} --granularity $SEGMENT_BY_PG"
+            action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG"
         ),
     }
 )
