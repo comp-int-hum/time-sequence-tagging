@@ -87,7 +87,6 @@ def segment_chapters(soup):
                 paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
                 paragraph_dict[pnum] = paragraph_text
             chapter_dict["ch" + str(cnum)] = paragraph_dict
-    assert(chapter_dict)
     return chapter_dict
 
 
