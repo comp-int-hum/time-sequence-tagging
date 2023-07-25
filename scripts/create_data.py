@@ -38,7 +38,7 @@ def get_metadata(soup):
     if imprint:
         pub_info = {}
         pub_info["publisher"] = [pers.string for pers in imprint.publisher.find_all('persName')] if imprint.publisher else []
-        pub_info["pubPlace"] = imprint.pubPlace.string
+        pub_info["pub_place"] = imprint.pubPlace.string
         pub_info["imprint_year"] = imprint.date.string
         data["pub_info"] = pub_info
     data["form"] = get_form(soup)

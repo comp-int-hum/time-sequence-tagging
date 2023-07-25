@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from string import punctuation
 import argparse
 import tarfile
 import json
@@ -18,19 +19,67 @@ def find_html_files(base_dir):
 				html_files.append(os.path.join(cpath, file))
 	return html_files
 
-def process(soup):
-        
+def get_metadata(soup):
+	data = {}
+	title_stmt = soup.find('title').string.split('by')
+	data["title"] = title_stmt[0].rstrip(punctuation)
+	data["author"] = title_stmt[1].strip()
+
+	# This is just to keep the format consistent with the data gathered from Women Writers Project
+	data["edition"] = None
+	data["pub_info"] = None
+	data["form"] = None
+
+	return data
+
+def get_chapter_links(soup):
+	ch_links = {}
+	toc = soup.find(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
+	if toc:
+		anchors = toc.find_all('a')
+		for a in anchors:
+			assert(a.get('href'))
+			ch_links[a.get('href')] = a.string
+
+	return ch_links
+	
+def get_chapters(soup, ch_links):
+	cnum = len(ch_links)
+	chapter_dict = {}
+	for i in range(cnum):
+		ch_start = ch_links[i]
+		ch_end = ch_links[i+1] if (i+1) < cnum else None
+
+		paragraph_dict = {}
+		pnum = 0
+
+		curr = ch_start.find_next_sibling()
+		while curr != ch_end:
+			if curr.name == "p":
+				paragraph_dict[pnum] = curr.get_text()
+				pnum += 1
+			curr = curr.find_next_sibling()
+
+		chapter_dict[ch_links[i]] = paragraph_dict
+		
+	return chapter_dict
+
+	# <div class="chapter">
+	# <p class="toc">
+
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	# parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
-        parser.add_argument("--input", dest="input", help="input html file to be processed")
+	parser.add_argument("--input", dest="input", help="input html file to be processed")
 	parser.add_argument("--output", dest="output", help="Name of output file")
-        
 	args, rest = parser.parse_known_args()
 
-        with open(args.input, "r") as fp:
-                soup = BeautifulSoup(fp, "xml")
+	with open(args.input, "r") as fp:
+		soup = BeautifulSoup(fp, "html.parser")
+		chapter_links = get_chapter_links(soup)
+		print(chapter_links)
                 
 
 	# html_files = find_html_files(args.base_dir)
