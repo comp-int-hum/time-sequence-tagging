@@ -25,20 +25,14 @@ def get_form(soup):
 
     return form
         
-        # # TODO: consider better solution to connecting words between pages``
-        # mw_tags = soup.find_all('mw')
-        # for mw_tag in mw_tags:
-        #     mw_tag.extract()
+        
 
 def get_metadata(fp):
 
     data = {} 
     soup = BeautifulSoup(fp, features="xml")
     data["title"] = soup.title.string
-    author = soup.author
-    if author:
-        author = author.persName.string
-    data["author"] = author
+    data["author"] = soup.author.persName.string if soup.author else None
     data["edition"] = soup.edition.string if soup.edition else None
     imprint = soup.imprint
     data["pub_info"] = None
@@ -59,16 +53,27 @@ def get_metadata(fp):
 
 
 
-def segment_paragraphs(soup): # passing in bs4 soup object
+def segment_paragraphs(fp): # passing in filepointer
+    soup = BeautifulSoup(fp, features="xml")
     paragraph_dict = {} # key=paragraph num, value=paragraph text
+
+    # # TODO: consider better solution to connecting words between pages
+    mw_tags = soup.find_all('mw', type="catch")
+    for mw_tag in mw_tags:
+        mw_tag.extract()
 
     if soup is not None:
         chp_num = 0
         for paragraph in soup.find_all('p'):
             paragraph_text = paragraph.get_text().strip()
             paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
-            data_dict[chp_num] = paragraph_text
+            print(paragraph_text)
+            print("\n")
+            paragraph_dict[chp_num] = paragraph_text
             chp_num+=1
+
+    
+   
 
     return paragraph_dict
 
@@ -94,6 +99,7 @@ if __name__ == "__main__":
                     file = tar.extractfile(member)
                     print(f"Name: {member.name}")
                     get_metadata(file)
+                    segment_paragraphs(file)
 
     else:
         print("Using regular files")
