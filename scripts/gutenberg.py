@@ -38,6 +38,7 @@ def get_chapter_links(soup):
 	if toc:
 		print("Found TOC")
 		anchors = toc.find_all('a')
+                assert(anchors)
 		ch_links = zip(range(len(anchors)),anchors)
 	return list(ch_links)
 	
