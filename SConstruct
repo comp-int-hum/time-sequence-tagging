@@ -28,10 +28,8 @@ vars.AddVariables(
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", "./data/warren.adulateur.xml"),
     ("OUTPUT_WIDTH", "", 5000),
-    ("MODEL_TYPES", "", ["naive_bayes", "neural"]),
-    ("PARAMETER_VALUES", "", [0.1, 0.5, 0.9]),
-    ("DATASETS", "", ["A", "B", "C"]),
-    ("FOLDS", "", 1),
+    ("SEGMENT_BY_CH", "", "chapter"),
+    ("SEGMENT_BY_PG", "", "paragraph"),
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -49,7 +47,7 @@ env = Environment(
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
         "ProcessData" : Builder(
-            action="python scripts/create_data.py --data_path ${SOURCES[0]} --outputs ${TARGETS}"
+            action="python scripts/create_data.py --data_path ${SOURCES[0]} --outputs ${TARGETS} --granularity $SEGMENT_BY_PG"
         ),
     }
 )

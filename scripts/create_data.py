@@ -22,15 +22,14 @@ def get_form(soup):
             div = body.find("div", attrs={"type":True})
             if div:
                 form = div.type
-
+                
     return form
         
         
 
-def get_metadata(fp):
+def get_metadata(soup):
 
     data = {} 
-    soup = BeautifulSoup(fp, features="xml")
     data["title"] = soup.title.string
     data["author"] = soup.author.persName.string if soup.author else None
     data["edition"] = soup.edition.string if soup.edition else None
@@ -39,9 +38,6 @@ def get_metadata(fp):
     if imprint:
         pub_info = {}
         pub_info["publisher"] = [pers.string for pers in imprint.publisher.find_all('persName')] if imprint.publisher else []
-            # persons = imprint.publisher.find_all('persName')
-            # for pers in persons:
-                # publishers.append(pers.string)
         pub_info["pubPlace"] = imprint.pubPlace.string
         pub_info["imprint_year"] = imprint.date.string
         data["pub_info"] = pub_info
@@ -53,27 +49,28 @@ def get_metadata(fp):
 
 
 
-def segment_paragraphs(fp): # passing in filepointer
-    soup = BeautifulSoup(fp, features="xml")
+def segment_paragraphs(soup): # passing in filepointer
+
     paragraph_dict = {} # key=paragraph num, value=paragraph text
 
-    # # TODO: consider better solution to connecting words between pages
-    mw_tags = soup.find_all('mw', type="catch")
+    body = soup.find('body')
+
+    # Removing marked words of type "catch" and "pageNum"
+    mw_tags = body.find_all('mw', type="catch") + body.find_all('mw', type='pageNum')
     for mw_tag in mw_tags:
         mw_tag.extract()
 
-    if soup is not None:
+
+    if body is not None:
+        print("soup not none")
         chp_num = 0
-        for paragraph in soup.find_all('p'):
+        for paragraph in body.find_all('p'):
             paragraph_text = paragraph.get_text().strip()
             paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
             print(paragraph_text)
             print("\n")
             paragraph_dict[chp_num] = paragraph_text
-            chp_num+=1
-
-    
-   
+            chp_num+=1   
 
     return paragraph_dict
 
@@ -90,23 +87,35 @@ if __name__ == "__main__":
     parser.add_argument("--granularity", dest="granularity", choices=["chapter", "paragraph"], help="chapter or paragraph")
     args, rest = parser.parse_known_args()
 
+    result = []
     if tarfile.is_tarfile(args.data_path[0]):
         print("Found tarfile")
         for tar_name in args.data_path:
             tar = tarfile.open(tar_name)
             for member in tar.getmembers():
                 if not member.isdir():
-                    file = tar.extractfile(member)
-                    print(f"Name: {member.name}")
-                    get_metadata(file)
-                    segment_paragraphs(file)
+                    fp = tar.extractfile(member)
+                    soup = BeautifulSoup(fp, features="xml")
+                    
+                    print(f"Name: {member.name}, form: {get_form(soup)}")
+                    # metadata = get_metadata(soup)
+                    # if metadata["form"] == "chapter":
+                      #  print("TRUE")
+                       #  if args.granularity == "paragraph":
+                         #   segments = segment_paragraphs(soup)
+                       #  else:
+                         #   segments = segment_chapters(soup)
+                       # result.append({'metadata': metadata, 'segments': segments})
 
     else:
         print("Using regular files")
-        with open(args.data_path[0], 'r') as fp:
-            soup = BeautifulSoup(fp, features="xml") # file, parser
-            body = soup.find('body')
-            print(type(body))
+        for curr_file in args.data_path:
+            with open(curr_file, 'r') as fp:
+                soup = BeautifulSoup(fp, features="xml") # file, parser
+                print(f"Name: {curr_file}, form: {get_form(soup)}")
+
+
+    print(f"RESULT LENGTH: {len(result)}")
     
     data_dict = {} # Used for json dump at end
     
