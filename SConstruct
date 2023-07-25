@@ -74,4 +74,4 @@ env = Environment(
 # variable, so they can be summarized together after each experiment runs.
 
 # env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
-env.ProcessData(source = env["LOCAL_PG"] , target = "test.txt")
+env.ProcessData(source = env["LOCAL_PG"] , target = "mobydick.txt")

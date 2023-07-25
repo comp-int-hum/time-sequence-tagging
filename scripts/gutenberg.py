@@ -21,8 +21,8 @@ def find_html_files(base_dir):
 
 def get_metadata(soup):
     data = {}
-    title_stmt = soup.find('title').string.split('by')
-    data["title"] = title_stmt[0].rstrip(punctuation)
+    title_stmt = soup.find('title').string.split(' by ')
+    data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
     data["author"] = title_stmt[1].strip()
 
     # This is just to keep the format consistent with the data gathered from Women Writers Project
@@ -37,7 +37,7 @@ def get_chapter_links(soup):
     toc = soup.find_all(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
     if toc:
         for a in toc:
-            ch_links.extend(toc.find_all('a'))
+            ch_links.extend(a.find_all('a'))
         
     return ch_links
     
@@ -48,17 +48,24 @@ def get_chapters(soup, ch_links):
         ch_start = ch_links[i]
         ch_end = ch_links[i+1] if (i+1) < cnum else None
 
+        # print(f"ch_start href: {ch_start.get('href')}")
+        # print(f"ch_end href: {ch_end.get('href')}")
+        start = soup.find('a', id=ch_start.get('href')[1:])
+        end = soup.find('a', id=ch_end.get('href')[1:]) if (i+1) < cnum else None
+        
         paragraph_dict = {}
         pnum = 0
 
-        curr = ch_start.find_next_sibling()
-        while curr != ch_end:
+        curr = start.find_next()
+        while curr and curr != end:
             if curr.name == "p":
+                # print(curr.get_text())
+                # print("\n")
                 paragraph_dict[pnum] = curr.get_text()
                 pnum += 1
-            curr = curr.find_next_sibling()
+            curr = curr.find_next()
 
-        chapter_dict[ch_links[i]] = paragraph_dict
+        chapter_dict[ch_links[i].string] = paragraph_dict
         
     return chapter_dict
 
@@ -74,10 +81,15 @@ if __name__ == "__main__":
     parser.add_argument("--output", dest="output", help="Name of output file")
     args, rest = parser.parse_known_args()
 
+    result = {}
     with open(args.input, "r") as fp:
         soup = BeautifulSoup(fp, "html.parser")
+        result = get_metadata(soup)
         chapter_links = get_chapter_links(soup)
-        print(chapter_links)
+        result["segments"] = get_chapters(soup, chapter_links)
+
+    with open(args.output, "w") as output:
+        json.dump(result, output)
                 
 
     # html_files = find_html_files(args.base_dir)
