@@ -34,13 +34,12 @@ def get_metadata(soup):
 
 def get_chapter_links(soup):
     ch_links = []
-    toc = soup.find(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
+    toc = soup.find_all(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
     if toc:
-        print("Found TOC")
-        anchors = toc.find_all('a')
-        assert(anchors)
-        ch_links = zip(range(len(anchors)),anchors)
-    return list(ch_links)
+        for a in toc:
+            ch_links.extend(toc.find_all('a'))
+        
+    return ch_links
     
 def get_chapters(soup, ch_links):
     cnum = len(ch_links)
