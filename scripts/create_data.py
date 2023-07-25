@@ -61,21 +61,36 @@ def segment_paragraphs(soup): # passing in filepointer
 
 
     if body is not None:
-        print("soup not none")
-        chp_num = 0
-        for paragraph in body.find_all('p'):
+        for pnum, paragraph in enumerate(body.find_all('p')):
             paragraph_text = paragraph.get_text().strip()
             paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
             print(paragraph_text)
             print("\n")
-            paragraph_dict[chp_num] = paragraph_text
-            chp_num+=1   
+            paragraph_dict[pnum] = paragraph_text  
 
     return paragraph_dict
 
 def segment_chapters(soup):
 
-    paragraph_dict = {} # key=paragraph num, value=paragraph text
+    chapter_dict = {}
+
+    body = soup.find('body')
+
+    # Removing marked words of type "catch" and "pageNum"
+    mw_tags = body.find_all('mw', type="catch") + body.find_all('mw', type='pageNum')
+    for mw_tag in mw_tags:
+        mw_tag.extract()
+
+    if body is not None:
+        for cnum, div in enumerate(body.find_all('div', {'type':'chapter'})):
+            paragraph_dict = {}
+            for pnum, paragraph in enumerate(div.find_all('p')):
+                paragraph_text = paragraph.get_text().strip()
+                paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
+                print(paragraph_text)
+                print("\n")
+                paragraph_dict[pnum] = paragraph_text
+            chapter_dict["ch" + str(cnum)] = paragraph_dict
 
 
 if __name__ == "__main__":
