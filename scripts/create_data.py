@@ -64,8 +64,6 @@ def segment_paragraphs(soup): # passing in filepointer
         for pnum, paragraph in enumerate(body.find_all('p')):
             paragraph_text = paragraph.get_text().strip()
             paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
-            print(paragraph_text)
-            print("\n")
             paragraph_dict[pnum] = paragraph_text  
 
     return paragraph_dict
@@ -87,11 +85,9 @@ def segment_chapters(soup):
             for pnum, paragraph in enumerate(div.find_all('p')):
                 paragraph_text = paragraph.get_text().strip()
                 paragraph_text = re.sub(r'\s+', ' ', paragraph_text)
-                print(paragraph_text)
-                print("\n")
                 paragraph_dict[pnum] = paragraph_text
             chapter_dict["ch" + str(cnum)] = paragraph_dict
-
+    assert(chapter_dict)
     return chapter_dict
 
 
@@ -133,12 +129,8 @@ if __name__ == "__main__":
 
     print(f"RESULT LENGTH: {len(result)}")
     
-    data_dict = {} # Used for json dump at end
-    
-    
-    
-    # with open(args.outputs, "w") as output:
-    #     json.dump(data_dict, output)
+    with open(args.outputs, "w") as output:
+        json.dump(result, output)
 
     
     # text_content = soup.get_text()
