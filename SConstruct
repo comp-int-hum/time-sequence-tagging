@@ -70,4 +70,4 @@ env = Environment(
 # ("sources") to later ones, and how some outputs are also gathered into the "results"
 # variable, so they can be summarized together after each experiment runs.
 
-env.ProcessData(source = env["LOCAL_DATA"] , target = "test.txt")
+env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
