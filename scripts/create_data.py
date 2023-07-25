@@ -21,7 +21,7 @@ def get_form(soup):
             #     print(f"Sanity check: {sanity_check}")
             div = body.find("div", attrs={"type":True})
             if div:
-                form = div.type
+                form = div.get("type")
                 
     return form
         
@@ -109,6 +109,7 @@ if __name__ == "__main__":
 
     else:
         print("Using regular files")
+        print(args.data_path)
         for curr_file in args.data_path:
             with open(curr_file, 'r') as fp:
                 soup = BeautifulSoup(fp, features="xml") # file, parser

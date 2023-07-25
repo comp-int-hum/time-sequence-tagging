@@ -26,7 +26,7 @@ vars = Variables("custom.py")
 vars.AddVariables(
     ("DATA_PATH", "", "/export/data/english/women_writers.tgz"), # correct
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
-    ("LOCAL_DATA", "", "./data/warren.adulateur.xml"),
+    ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("OUTPUT_WIDTH", "", 5000),
     ("SEGMENT_BY_CH", "", "chapter"),
     ("SEGMENT_BY_PG", "", "paragraph"),
@@ -47,7 +47,7 @@ env = Environment(
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
         "ProcessData" : Builder(
-            action="python scripts/create_data.py --data_path ${SOURCES[0]} --outputs ${TARGETS} --granularity $SEGMENT_BY_PG"
+            action="python scripts/create_data.py --data_path ${SOURCES} --outputs ${TARGETS} --granularity $SEGMENT_BY_PG"
         ),
     }
 )
@@ -70,4 +70,4 @@ env = Environment(
 # ("sources") to later ones, and how some outputs are also gathered into the "results"
 # variable, so they can be summarized together after each experiment runs.
 
-env.ProcessData(source = env["DATA_PATH"], target = "test.txt")
+env.ProcessData(source = env["LOCAL_DATA"] , target = "test.txt")
