@@ -39,28 +39,28 @@ def get_metadata(soup):
     return data
 
 def get_chapter_links(soup):
-    ch_links = []
-    toc = soup.find_all(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
-    if toc:
-        for a in toc:
-            ch_links.extend(a.find_all('a'))
+    # ch_links = []
+    # toc = soup.find_all(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
+    # if toc:
+    #     for a in toc:
+    #         ch_links.extend(a.find_all('a'))
         
-    return ch_links
-
-def get_chapters(soup):
+    # return ch_links
+    ch_links = []
     toc = soup.find_all(attrs={"class":"toc"})
     if toc:
-        return get_chapters_toc(soup, toc)
+        for instance in toc:
+            ch_links.extend(instance.find_all('a'))
+        
     elif soup.find(attrs={"class":"chapter"}):
-        return
-
-def get_chapters_div(soup):
-    chapters =
+        chapter_table = soup.find('table')
+        if chapter_table:
+            ch_links.extend(toc)
     
-def get_chapters_toc(soup, toc):
-    ch_links = []
-    for instance in toc:
-        ch_links.extend(instance.find_all('a'))
+    return ch_links
+    
+def get_chapters(soup, ch_links):
+    
     cnum = len(ch_links)
     chapter_dict = {}
     for i in range(cnum):
