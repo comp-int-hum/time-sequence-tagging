@@ -50,12 +50,16 @@ def get_chapter_links(soup):
     toc = soup.find_all(attrs={"class":"toc"})
     if toc:
         for instance in toc:
-            ch_links.extend(instance.find_all('a'))
+            links = instance.find_all('a')
+            if links:
+                ch_links.extend(instance.find_all('a'))
         
     elif soup.find(attrs={"class":"chapter"}):
         chapter_table = soup.find('table')
         if chapter_table:
-            ch_links.extend(toc)
+            links = chapter_table.find_all('a')
+            if links:
+                ch_links.extend(links)
     
     return ch_links
     
