@@ -46,8 +46,21 @@ def get_chapter_links(soup):
             ch_links.extend(a.find_all('a'))
         
     return ch_links
+
+def get_chapters(soup):
+    toc = soup.find_all(attrs={"class":"toc"})
+    if toc:
+        return get_chapters_toc(soup, toc)
+    elif soup.find(attrs={"class":"chapter"}):
+        return
+
+def get_chapters_div(soup):
+    chapters =
     
-def get_chapters(soup, ch_links):
+def get_chapters_toc(soup, toc):
+    ch_links = []
+    for instance in toc:
+        ch_links.extend(instance.find_all('a'))
     cnum = len(ch_links)
     chapter_dict = {}
     for i in range(cnum):
@@ -95,12 +108,15 @@ if __name__ == "__main__":
             locc = row["LoCC"].split(";")
             is_lang_lit = any(tag[0] == "P" for tag in locc)
             if is_lang_lit:
-                file_path = get_gb_html_dir(args.base_dir, row["Text#"])
+                text_num = row["Text#"]
+                file_path = get_gb_html_dir(args.base_dir, text_num)
+                print(f"Text number: {text_num}")
                 print(f"File Path: {file_path}")
-                soup = BeautifulSoup(file_path, "html.parser")
-                result = get_metadata(soup)
-                ch_links = get_chapter_links(soup)
-                result["segments"] = get_chapters(soup, ch_links)
+                with open(file_path, "r") as fpointer:
+                    soup = BeautifulSoup(fpointer, "html.parser")
+                    result = get_metadata(soup)
+                    ch_links = get_chapter_links(soup)
+                    result["segments"] = get_chapters(soup, ch_links)
     
             
 
