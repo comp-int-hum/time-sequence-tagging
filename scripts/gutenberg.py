@@ -92,12 +92,15 @@ if __name__ == "__main__":
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
         for row in csv_reader:
-            file_path = get_gb_html_dir(args.base_dir, row["Text#"])
-            print(f"File Path: {file_path}")
-            soup = BeautifulSoup(file_path, "html.parser")
-            result = get_metadata(soup)
-            ch_links = get_chapter_links(soup)
-            result["segments"] = get_chapters(soup, ch_links)
+            locc = row["LoCC"].split(";")
+            is_lang_lit = any(tag[0] == "P" for tag in locc)
+            if is_lang_lit:
+                file_path = get_gb_html_dir(args.base_dir, row["Text#"])
+                print(f"File Path: {file_path}")
+                soup = BeautifulSoup(file_path, "html.parser")
+                result = get_metadata(soup)
+                ch_links = get_chapter_links(soup)
+                result["segments"] = get_chapters(soup, ch_links)
     
             
 
