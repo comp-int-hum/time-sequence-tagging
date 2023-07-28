@@ -69,15 +69,15 @@ def get_chapters(soup, ch_links):
     cnum = len(ch_links)
     chapter_dict = {}
     for i in range(cnum):
-        ch_start = ch_links[i]
-        ch_end = ch_links[i+1] if (i+1) < cnum else None
+        ch_start = ch_links[i].get('href')[1:]
+        ch_end = ch_links[i+1].get('href')[1:] if (i+1) < cnum else None
 
         print(f"Start: {ch_start}")
         # print(f"ch_start href: {ch_start.get('href')}")
         # print(f"ch_end href: {ch_end.get('href')}")
-        start = soup.find('a', id=ch_start.get('href')[1:])
+        start = soup.find('a', id=ch_start) or soup.find('a', name=ch_start)
         print(f"Start mod: {start}")
-        end = soup.find('a', id=ch_end.get('href')[1:]) if (i+1) < cnum else None
+        end = soup.find('a', id=ch_end) or soup.find('a', name=ch_end) if ch_end else None
         
         paragraph_dict = {}
         pnum = 0
