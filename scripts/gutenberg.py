@@ -72,6 +72,7 @@ def get_chapters(soup, ch_links):
         ch_start = ch_links[i]
         ch_end = ch_links[i+1] if (i+1) < cnum else None
 
+        print(f"Start: {ch_start}")
         # print(f"ch_start href: {ch_start.get('href')}")
         # print(f"ch_end href: {ch_end.get('href')}")
         start = soup.find('a', id=ch_start.get('href')[1:])
