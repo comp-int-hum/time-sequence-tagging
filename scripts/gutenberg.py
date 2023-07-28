@@ -61,7 +61,6 @@ def get_chapter_links(soup):
             if links:
                 ch_links.extend(links)
     
-    print(ch_links)
     return ch_links
     
 def get_chapters(soup, ch_links):
