@@ -50,7 +50,7 @@ env = Environment(
     BUILDERS={
         "ProcessData" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/gutenberg.py --base_dir ${DATAPATH_2} $--input ${SOURCES} --output ${TARGETS}",
+            action="python scripts/gutenberg.py --base_dir ${DATAPATH_2} --input ${SOURCES} --output ${TARGETS}",
         ),
     }
 )

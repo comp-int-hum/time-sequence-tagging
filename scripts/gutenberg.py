@@ -12,6 +12,11 @@ def parse_gb_directory(base_dir, text_num):
     path_elements = "/".join([c for c in text_num[:-1]])
     return os.path.join(base_dir, path_elements, text_num)
 
+def get_gb_html_dir(base_dir, text_num):
+    dir_path = parse_gb_directory(base_dir, text_num)
+    return os.path.join(dir_path, text_num + "-h", text_num + "-h.htm")
+    
+
 def find_html_files(base_dir):
     html_files = []
     for cpath, _, files in os.walk(base_dir):
@@ -82,12 +87,19 @@ if __name__ == "__main__":
     parser.add_argument("--local", dest="local", nargs="?", help="local files")
     args, rest = parser.parse_known_args()
 
+    print(f"Input: {args.input}")
     result = {}
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
         for row in csv_reader:
-            file_path = parse_gb_directory(args.base_dir, row["Text#"])
-            print(file_path)
+            file_path = get_gb_html_dir(args.base_dir, row["Text#"])
+            print(f"File Path: {file_path}")
+            soup = BeautifulSoup(file_path, "html.parser")
+            result = get_metadata(soup)
+            ch_links = get_chapter_links(soup)
+            result["segments"] = get_chapters(soup, ch_links)
+    
+            
 
 
 
