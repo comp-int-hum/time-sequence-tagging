@@ -55,13 +55,17 @@ def get_chapter_links(soup):
                 ch_links.extend(instance.find_all('a'))
         
     elif soup.find(attrs={"class":"chapter"}):
-        chapter_table = soup.find('table')
+        tables = soup.find_all('table')
+        signifier_words = ["Contents", "Content"]
+        chapter_table = None
+        for table in tables:
+            if table.previous_sibling.string in signifier_words:
+                chapter_table = table
         if chapter_table:
             links = chapter_table.find_all('a')
             if links:
                 ch_links.extend(links)
     
-    print(ch_links)
     return ch_links
     
 def get_chapters(soup, ch_links):
