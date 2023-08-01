@@ -164,7 +164,8 @@ if __name__ == "__main__":
                             result = get_metadata(soup)
                             volume_links = get_chapter_links(soup)
                             for header, volume in volume_links.items():
-                                result["title"] += " -- " + header
+                                if header:
+                                    result["title"] += " -- " + header
                                 result["segments"] = get_chapters(soup, volume)
                                 if result["segments"]:
                                     data.append(result)
