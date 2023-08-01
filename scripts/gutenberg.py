@@ -63,7 +63,7 @@ def get_chapter_links(soup):
     #         ch_links.extend(a.find_all('a'))
         
     # return ch_links
-    volume_links = []
+    volume_links = {}
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
         ch_links = []
