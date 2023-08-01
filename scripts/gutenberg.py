@@ -27,14 +27,15 @@ def find_html_files(base_dir):
 
 def get_metadata(soup):
     data = {}
-    title_stmt = soup.find('title').string.split(' by ')
-    data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
-    data["author"] = title_stmt[1].strip() if len(title_stmt) > 1 else None
+    if soup.find('title') and soup.find('title').string:
+        title_stmt = soup.find('title').string.split(' by ')
+        data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
+        data["author"] = title_stmt[1].strip() if len(title_stmt) > 1 else None
 
-    # This is just to keep the format consistent with the data gathered from Women Writers Project
-    data["edition"] = None
-    data["pub_info"] = None
-    data["form"] = None
+        # This is just to keep the format consistent with the data gathered from Women Writers Project
+        data["edition"] = None
+        data["pub_info"] = None
+        data["form"] = None
 
     return data
 
@@ -51,10 +52,11 @@ def is_volume_header(header):
     return False
 
 def is_content_table(table):
-    signifier_words = get_signifier_words()
-    for word in signifier_words:
-        if word in table.previous_sibling.string.lower():
-            return True
+    if table.previous_sibling and table.previous_sibling.string:
+        signifier_words = get_signifier_words()
+        for word in signifier_words:
+            if word in table.previous_sibling.string.lower():
+                return True
     return False
 
 def get_chapter_links(soup):
@@ -149,26 +151,26 @@ if __name__ == "__main__":
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
         for i, row in enumerate(csv_reader):
-            if i < 100:
-                locc = row["LoCC"].split(";") if row["LoCC"] else None
-                is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
-                if is_lang_lit:
-                    text_num = row["Text#"]
-                    file_path = get_gb_html_dir(args.base_dir, text_num)
-                    print(f"Text number: {text_num}")
-                    print(f"File Path: {file_path}")
-                    if os.path.isfile(file_path):
-                        with open(file_path, "rb") as fpointer:
-                            soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
-                            print(soup.original_encoding)
-                            result = get_metadata(soup)
+            locc = row["LoCC"].split(";") if row["LoCC"] else None
+            is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
+            if is_lang_lit:
+                text_num = row["Text#"]
+                file_path = get_gb_html_dir(args.base_dir, text_num)
+                print(f"Text number: {text_num}")
+                print(f"File Path: {file_path}")
+                if os.path.isfile(file_path):
+                    with open(file_path, "rb") as fpointer:
+                        soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
+                        print(soup.original_encoding)
+                        result = get_metadata(soup)
+                        if result:
                             volume_links = get_chapter_links(soup)
                             for header, volume in volume_links.items():
                                 if header:
                                     result["title"] += " -- " + header
-                                result["segments"] = get_chapters(soup, volume)
-                                if result["segments"]:
-                                    data.append(result)
+                                    result["segments"] = get_chapters(soup, volume)
+                                    if result["segments"]:
+                                        data.append(result)
     
             
 
