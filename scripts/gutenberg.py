@@ -25,18 +25,18 @@ def find_html_files(base_dir):
                 html_files.append(os.path.join(cpath, file))
     return html_files
 
-def get_metadata(soup):
-    data = {}
-    if soup.find('title') and soup.find('title').string:
-        title_stmt = soup.find('title').string.split(' by ')
-        data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
-        data["author"] = title_stmt[1].strip() if len(title_stmt) > 1 else None
-        # This is just to keep the format consistent with the data gathered from Women Writers Project
-        data["edition"] = None
-        data["pub_info"] = None
-        data["form"] = None
+# def get_metadata(soup):
+#     data = {}
+#     if soup.find('title') and soup.find('title').string:
+#         title_stmt = soup.find('title').string.split(' by ')
+#         data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
+#         data["author"] = title_stmt[1].strip() if len(title_stmt) > 1 else None
+#         # This is just to keep the format consistent with the data gathered from Women Writers Project
+#         data["edition"] = None
+#         data["pub_info"] = None
+#         data["form"] = None
 
-    return data
+#     return data
 
 def get_signifier_words():
     return ["contents", "content", "volume", "book"]
@@ -143,7 +143,7 @@ if __name__ == "__main__":
             #     break
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
-            if is_lang_lit:
+            if is_lang_lit and row["Title"].strip():
                 text_num = row["Text#"]
                 file_path = get_gb_html_dir(args.base_dir, text_num)
                 print(f"Text number: {text_num}")
@@ -152,16 +152,17 @@ if __name__ == "__main__":
                     with open(file_path, "rb") as fpointer:
                         soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
                         print(soup.original_encoding)
-                        result = get_metadata(soup)
-                        if result:
-                            volume_links = get_volume_links(soup)
-                            for header, volume in volume_links.items():
-                                print(f"Header: {header}")
-                                if header:
-                                    result["title"] += " -- " + header
-                                    result["segments"] = get_chapters(soup, volume)
-                                    if result["segments"]:
-                                        data.append(result)
+                        result = {"edition":None, "pub_info":None, "form":None}
+                        result["title"] = row["Title"]
+                        result["author"] = row["Authors"]
+                        volume_links = get_volume_links(soup)
+                        for header, volume in volume_links.items():
+                            print(f"Header: {header}")
+                            if header:
+                                result["title"] += " -- " + header
+                                result["segments"] = get_chapters(soup, volume)
+                                if result["segments"]:
+                                    data.append(result)
 
     with open(args.output, "w") as output:
         json.dump(data, output)
