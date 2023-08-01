@@ -148,25 +148,26 @@ if __name__ == "__main__":
     data = []
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
-        for row in csv_reader:
-            locc = row["LoCC"].split(";") if row["LoCC"] else None
-            is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
-            if is_lang_lit:
-                text_num = row["Text#"]
-                file_path = get_gb_html_dir(args.base_dir, text_num)
-                print(f"Text number: {text_num}")
-                print(f"File Path: {file_path}")
-                if os.path.isfile(file_path):
-                    with open(file_path, "rb") as fpointer:
-                        soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
-                        print(soup.original_encoding)
-                        result = get_metadata(soup)
-                        volume_links = get_chapter_links(soup)
-                        for header, volume in volume_links.items():
-                            result["title"] += " -- " + header
-                            result["segments"] = get_chapters(soup, volume)
-                            if result["segments"]:
-                                data.append(result)
+        for i, row in enumerate(csv_reader):
+            if i < 100:
+                locc = row["LoCC"].split(";") if row["LoCC"] else None
+                is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
+                if is_lang_lit:
+                    text_num = row["Text#"]
+                    file_path = get_gb_html_dir(args.base_dir, text_num)
+                    print(f"Text number: {text_num}")
+                    print(f"File Path: {file_path}")
+                    if os.path.isfile(file_path):
+                        with open(file_path, "rb") as fpointer:
+                            soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
+                            print(soup.original_encoding)
+                            result = get_metadata(soup)
+                            volume_links = get_chapter_links(soup)
+                            for header, volume in volume_links.items():
+                                result["title"] += " -- " + header
+                                result["segments"] = get_chapters(soup, volume)
+                                if result["segments"]:
+                                    data.append(result)
     
             
 
