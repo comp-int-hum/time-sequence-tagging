@@ -31,7 +31,6 @@ def get_metadata(soup):
         title_stmt = soup.find('title').string.split(' by ')
         data["title"] = title_stmt[0][:-1] if title_stmt[0][-1] == "," else title_stmt[0]
         data["author"] = title_stmt[1].strip() if len(title_stmt) > 1 else None
-
         # This is just to keep the format consistent with the data gathered from Women Writers Project
         data["edition"] = None
         data["pub_info"] = None
@@ -39,12 +38,10 @@ def get_metadata(soup):
 
     return data
 
-
-
 def get_signifier_words():
     return ["contents", "content", "volume", "book"]
 
-def is_volume_header(header):
+def is_volume_header(header): # get header for what is presumably a volume
     signifier_words = get_signifier_words()
     for word in signifier_words:
         if word in header:
@@ -59,14 +56,7 @@ def is_content_table(table):
                 return True
     return False
 
-def get_chapter_links(soup):
-    # ch_links = []
-    # toc = soup.find_all(attrs={"class":"toc"}) or soup.find(attrs={"class":"chapter"})
-    # if toc:
-    #     for a in toc:
-    #         ch_links.extend(a.find_all('a'))
-        
-    # return ch_links
+def get_volume_links(soup):
     volume_links = {}
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
@@ -134,9 +124,6 @@ def get_chapters(soup, ch_links):
         return None
     return chapter_dict
 
-    # <div class="chapter">
-    # <p class="toc">
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -151,8 +138,9 @@ if __name__ == "__main__":
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
         for i, row in enumerate(csv_reader):
-            if i > 100:
-                break
+            # For local testing
+            # if i > 100:
+            #     break
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
             if is_lang_lit:
@@ -166,31 +154,16 @@ if __name__ == "__main__":
                         print(soup.original_encoding)
                         result = get_metadata(soup)
                         if result:
-                            volume_links = get_chapter_links(soup)
+                            volume_links = get_volume_links(soup)
                             for header, volume in volume_links.items():
+                                print(f"Header: {header}")
                                 if header:
                                     result["title"] += " -- " + header
                                     result["segments"] = get_chapters(soup, volume)
                                     if result["segments"]:
                                         data.append(result)
-    
-            
-
-
-
-
-
-
-
-    # with open(args.input, "r") as fp:
-    #     soup = BeautifulSoup(fp, "html.parser")
-    #     result = get_metadata(soup)
-    #     chapter_links = get_chapter_links(soup)
-    #     result["segments"] = get_chapters(soup, chapter_links)
 
     with open(args.output, "w") as output:
         json.dump(data, output)
                 
-
-    # html_files = find_html_files(args.base_dir)
         
