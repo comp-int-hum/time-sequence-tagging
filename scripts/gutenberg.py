@@ -116,8 +116,10 @@ def get_chapters(soup, ch_links):
                     # print(curr.get_text())
                     # print("\n")
                     par = curr.get_text().replace('\r', '').replace('\n', '')
-                    paragraph_dict[pnum] = re.sub(r'\s+', ' ', par)
-                    pnum += 1
+                    par = re.sub(r'\s+', ' ', par)
+                    if par:
+                        paragraph_dict[pnum] = par
+                        pnum += 1
                 curr = curr.find_next()
 
             chapter_dict[ch_links[i].string] = paragraph_dict
