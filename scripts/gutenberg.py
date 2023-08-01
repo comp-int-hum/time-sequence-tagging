@@ -151,6 +151,8 @@ if __name__ == "__main__":
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
         for i, row in enumerate(csv_reader):
+            if i > 100:
+                break
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
             if is_lang_lit:
