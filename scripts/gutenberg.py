@@ -99,31 +99,33 @@ def get_chapters(soup, ch_links):
     
     cnum = len(ch_links)
     chapter_dict = {}
-    for i in range(cnum):
-        ch_start = ch_links[i].get('href')[1:]
-        ch_end = ch_links[i+1].get('href')[1:] if (i+1) < cnum else None
+    try:
+        for i in range(cnum):
+            ch_start = ch_links[i].get('href')[1:]
+            ch_end = ch_links[i+1].get('href')[1:] if (i+1) < cnum else None
 
-        # print(f"Start: {ch_start}")
-        # print(f"ch_start href: {ch_start.get('href')}")
-        # print(f"ch_end href: {ch_end.get('href')}")
-        start = soup.find('a', id=ch_start) or soup.find('a', attrs = {"name":ch_start})
-        # print(f"Start mod: {start}")
-        end = soup.find('a', id=ch_end) or soup.find('a', attrs = {"name": ch_end}) if ch_end else None
-        
-        paragraph_dict = {}
-        pnum = 0
+            # print(f"Start: {ch_start}")
+            # print(f"ch_start href: {ch_start.get('href')}")
+            # print(f"ch_end href: {ch_end.get('href')}")
+            start = soup.find('a', id=ch_start) or soup.find('a', attrs = {"name":ch_start})
+            # print(f"Start mod: {start}")
+            end = soup.find('a', id=ch_end) or soup.find('a', attrs = {"name": ch_end}) if ch_end else None
+            
+            paragraph_dict = {}
+            pnum = 0
 
-        curr = start.find_next()
-        while curr and curr != end:
-            if curr.name == "p":
-                # print(curr.get_text())
-                # print("\n")
-                paragraph_dict[pnum] = curr.get_text()
-                pnum += 1
-            curr = curr.find_next()
+            curr = start.find_next()
+            while curr and curr != end:
+                if curr.name == "p":
+                    # print(curr.get_text())
+                    # print("\n")
+                    paragraph_dict[pnum] = curr.get_text()
+                    pnum += 1
+                curr = curr.find_next()
 
-        chapter_dict[ch_links[i].string] = paragraph_dict
-        
+            chapter_dict[ch_links[i].string] = paragraph_dict
+    except:
+        return None
     return chapter_dict
 
     # <div class="chapter">
@@ -159,7 +161,8 @@ if __name__ == "__main__":
                         for header, volume in volume_links.items():
                             result["title"] += " -- " + header
                             result["segments"] = get_chapters(soup, volume)
-                            data.append(result)
+                            if result["segments"]:
+                                data.append(result)
     
             
 
