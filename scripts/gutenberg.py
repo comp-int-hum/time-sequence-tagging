@@ -76,18 +76,22 @@ def get_chapter_links(soup):
         tables = soup.find_all('table')
         for table in tables:
             if is_content_table(table):
-                ch_links = chapter_table.find_all('a')
+                ch_links = table.find_all('a')
                 if ch_links:
                     volume_links[table.previous_sibling.string] = ch_links # Use header of table as name of volume
     else:
-        toc_div = soup.find('div', attrs={"class":"toc"}):
+        toc_div = soup.find('div', attrs={"class":"toc"})
         if toc_div:
             headers = toc_div.find_all('h2')
-            ch_links = []
             if headers:
                 for header in headers:
+                    ch_links = []
                     if is_volume_header(header):
-                        header.find_next_sibling()
+                        next = header.find_next_sibling()
+                        if next:
+                            ch_links = next.find_all('a')
+                            if ch_links:
+                                volume_links[header.string] = ch_links
     
     return volume_links
 
@@ -152,7 +156,8 @@ if __name__ == "__main__":
                         print(soup.original_encoding)
                         result = get_metadata(soup)
                         volume_links = get_chapter_links(soup)
-                        for volume in volume_links:
+                        for header, volume in volume_links.items():
+                            result["title"] += " -- " + header
                             result["segments"] = get_chapters(soup, volume)
                             data.append(result)
     
