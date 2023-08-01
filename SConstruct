@@ -32,6 +32,8 @@ vars.AddVariables(
     ("PG_CATALOG", "", "pg_catalog.csv"),
     ("SEGMENT_BY_CH", "", "chapter"),
     ("SEGMENT_BY_PG", "", "paragraph"),
+    ("MODEL_NAME", "", "bert-base-uncased"),
+    ("MAX_TOKS", "", 512),
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -52,6 +54,9 @@ env = Environment(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
             action="python scripts/gutenberg.py --base_dir ${DATAPATH_2} --input ${SOURCES} --output ${TARGETS}",
         ),
+        "EncodeData": Builder(
+            action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
+        )
     }
 )
 
@@ -75,3 +80,4 @@ env = Environment(
 
 # env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
 env.ProcessData(source = env["PG_CATALOG"] , target = "mobydick.txt")
+env.encodeData(source = ["result.json"], target = "encoded.h5")

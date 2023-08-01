@@ -1,3 +1,6 @@
 steamroller
 beautifulsoup4
 lxml
+transformers
+h5py
+jsonlines
