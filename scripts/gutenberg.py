@@ -139,8 +139,8 @@ if __name__ == "__main__":
         csv_reader = csv.DictReader(catalog)
         for i, row in enumerate(csv_reader):
             # For local testing
-            # if i > 100:
-            #     break
+            if i > 100:
+                break
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
             if is_lang_lit:
@@ -156,12 +156,11 @@ if __name__ == "__main__":
                         if result:
                             volume_links = get_volume_links(soup)
                             for header, volume in volume_links.items():
-                                print(f"Header: {header}")
-                                if header:
-                                    result["title"] += " -- " + header
-                                    result["segments"] = get_chapters(soup, volume)
-                                    if result["segments"]:
-                                        data.append(result)
+                                if header.strip():
+                                    result["title"] += " -- " + header.strip()
+                                result["segments"] = get_chapters(soup, volume)
+                                if result["segments"]:
+                                    data.append(result)
 
     with open(args.output, "w") as output:
         json.dump(data, output)
