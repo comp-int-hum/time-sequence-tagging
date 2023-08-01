@@ -115,7 +115,8 @@ def get_chapters(soup, ch_links):
                 if curr.name == "p":
                     # print(curr.get_text())
                     # print("\n")
-                    paragraph_dict[pnum] = curr.get_text().replace('\r', '').replace('\n', '')
+                    par = curr.get_text().replace('\r', '').replace('\n', '')
+                    paragraph_dict[pnum] = re.sub(r'\s+', ' ', par)
                     pnum += 1
                 curr = curr.find_next()
 
@@ -152,9 +153,7 @@ if __name__ == "__main__":
                     with open(file_path, "rb") as fpointer:
                         soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
                         print(soup.original_encoding)
-                        result = {"edition":None, "pub_info":None, "form":None}
-                        result["title"] = row["Title"]
-                        result["author"] = row["Authors"]
+                        result = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
                         volume_links = get_volume_links(soup)
                         for header, volume in volume_links.items():
                             print(f"Header: {header}")
