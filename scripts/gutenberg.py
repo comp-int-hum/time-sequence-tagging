@@ -38,6 +38,8 @@ def get_metadata(soup):
 
     return data
 
+
+
 def get_signifier_words():
     return ["contents", "content", "volume", "book"]
 
@@ -95,6 +97,8 @@ def get_chapter_links(soup):
     
     return volume_links
 
+
+
 def get_chapters(soup, ch_links):
     
     cnum = len(ch_links)
@@ -119,7 +123,7 @@ def get_chapters(soup, ch_links):
                 if curr.name == "p":
                     # print(curr.get_text())
                     # print("\n")
-                    paragraph_dict[pnum] = curr.get_text()
+                    paragraph_dict[pnum] = curr.get_text().replace('\r', '').replace('\n', '')
                     pnum += 1
                 curr = curr.find_next()
 
