@@ -112,7 +112,7 @@ def get_chapters(soup, ch_links):
 
             curr = start.find_next()
             while curr and curr != end:
-                if curr.find('a', attrs = {"name": ch_end}): # next anchor embedded within current element
+                if curr.find_all('a', attrs = {"name": ch_end}): # next anchor embedded within current element
                     break
                 if curr.name == "p":
                     # print(curr.get_text())
