@@ -5,6 +5,7 @@ import re
 import os
 import csv
 import jsonlines
+import json
 
 # see https://github.com/comp-int-hum/gutenberg-ns-extractor/blob/045bddb8d3b264ea99a33063df5a4b3f2e7134bc/scripts/produce_sentence_corpus.py#L19-L21
 def parse_gb_directory(base_dir, text_num):
@@ -131,10 +132,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
     parser.add_argument("--input", dest="input", help="csv file")
-    parser.add_argument("--output", dest="output", help="Name of output file")
+    parser.add_argument("--output", dest="outputs", nargs="*", help="Name of output files")
     parser.add_argument("--local", dest="local", nargs="?", help="local files")
     args, rest = parser.parse_known_args()
 
+    print(f"Outputs: {args.outputs}")
     print(f"Input: {args.input}")
     data = []
     with open(args.input) as catalog:
@@ -163,8 +165,13 @@ if __name__ == "__main__":
                             result["segments"] = get_chapters(soup, volume)
                             if result["segments"]:
                                 data.append(result)
+    for d in data:
+        assert(d != {})
+        
+    with jsonlines.open(args.outputs[0], "w") as writer:
+        writer.write_all(data)
 
-    with open(args.output, "w") as output:
-        jsonlines.write_all(data, output)
+    with open(args.outputs[1], "w") as output:
+        json.dump(data, output)
                 
         

@@ -79,5 +79,5 @@ env = Environment(
 # variable, so they can be summarized together after each experiment runs.
 
 # env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
-env.ProcessData(source = env["PG_CATALOG"] , target = "mobydick.txt")
-env.encodeData(source = ["result.json"], target = "encoded.h5")
+env.ProcessData(source = env["PG_CATALOG"] , target = ["gutenberg.jsonl", "test.txt"])
+# env.EncodeData(source = ["results.json"], target = "encoded.h5")
