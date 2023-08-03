@@ -166,5 +166,5 @@ if __name__ == "__main__":
 
     with open(args.output, "w") as output:
         jsonlines.write_all(data, output)
-                
+        
         
