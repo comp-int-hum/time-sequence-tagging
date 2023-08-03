@@ -1,11 +1,10 @@
 from bs4 import BeautifulSoup
 from string import punctuation
 import argparse
-import tarfile
-import json
 import re
 import os
 import csv
+import jsonlines
 
 # see https://github.com/comp-int-hum/gutenberg-ns-extractor/blob/045bddb8d3b264ea99a33063df5a4b3f2e7134bc/scripts/produce_sentence_corpus.py#L19-L21
 def parse_gb_directory(base_dir, text_num):
@@ -166,6 +165,6 @@ if __name__ == "__main__":
                                 data.append(result)
 
     with open(args.output, "w") as output:
-        json.dump(data, output)
+        jsonlines.write_all(data, output)
                 
         
