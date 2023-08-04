@@ -94,10 +94,12 @@ def get_volume_links(soup):
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
         # Assumption: only one volume for this kind of style
+        ch_links = OrderedDict()
         for instance in paragraph_toc_class:
-            ch_links = OrderedDict()
+            
             anchor_links = instance.find_all('a')
             fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        print(f"Ch_links: {ch_links}")
         book_volume_links[" "] = list(ch_links.values()) # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
         # Frequently multi-volume texts
@@ -110,12 +112,13 @@ def get_volume_links(soup):
         if toc_div:
             headers = toc_div.find_all('h2')
             fill_volume_dict_from_headers(book_volume_links, headers)
-    
+    print(book_volume_links)
     return book_volume_links
 
 
 
 def get_chapters(soup, ch_list):
+    print(ch_list)
     
     cnum = len(ch_list)
     chapter_dict = {}
@@ -169,8 +172,8 @@ if __name__ == "__main__":
         csv_reader = csv.DictReader(catalog)
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i > 100:
-                break
+            if i != 20:
+                continue
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
             if is_lang_lit and row["Title"].strip():
