@@ -88,7 +88,7 @@ def fill_volume_dict_from_headers(book_volume_dict, headers):
                     book_volume_dict[header.string] = ch_links
 
 def clean_string(str):
-    str = str.get_text().replace('\r', '').replace('\n', '')
+    str = str.replace('\r', '').replace('\n', '')
     return re.sub(r'\s+', ' ', str).strip()
 
 def get_volume_links(soup):
@@ -147,8 +147,9 @@ def get_chapters(soup, ch_list):
                 if curr.name == "p":
                     # print(curr.get_text())
                     # print("\n")
-                    par = curr.get_text().replace('\r', '').replace('\n', '')
-                    par = re.sub(r'\s+', ' ', par).strip()
+                    par = clean_string(curr.get_text())
+                    # par = curr.get_text().replace('\r', '').replace('\n', '')
+                    # par = re.sub(r'\s+', ' ', par).strip()
                     # if par:
                     paragraph_dict[pnum] = par
                     pnum += 1
