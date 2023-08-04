@@ -90,14 +90,15 @@ def fill_volume_dict_from_headers(book_volume_dict, headers):
 
 def get_volume_links(soup):
     book_volume_links = OrderedDict()
-    ch_links = OrderedDict()
+    
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
         # Assumption: only one volume for this kind of style
         for instance in paragraph_toc_class:
+            ch_links = OrderedDict()
             anchor_links = instance.find_all('a')
             fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
-        book_volume_links[" "] = ch_links # Default behavior for one volume book
+        book_volume_links[" "] = list(ch_links.values()) # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
         # Frequently multi-volume texts
         tables = soup.find_all('table')
@@ -114,14 +115,14 @@ def get_volume_links(soup):
 
 
 
-def get_chapters(soup, ch_links):
+def get_chapters(soup, ch_list):
     
-    cnum = len(ch_links)
+    cnum = len(ch_list)
     chapter_dict = {}
     try:
         for i in range(cnum):
-            ch_start = ch_links[i].get('href')[1:]
-            ch_end = ch_links[i+1].get('href')[1:] if (i+1) < cnum else None
+            ch_start = ch_list[i].get('href')[1:]
+            ch_end = ch_list[i+1].get('href')[1:] if (i+1) < cnum else None
 
             # print(f"Start: {ch_start}")
             # print(f"ch_start href: {ch_start.get('href')}")
@@ -147,7 +148,7 @@ def get_chapters(soup, ch_links):
                     pnum += 1
                 curr = curr.find_next()
 
-            chapter_dict[ch_links[i].string] = paragraph_dict
+            chapter_dict[ch_list[i].string] = paragraph_dict
     except:
         return None
     return chapter_dict
