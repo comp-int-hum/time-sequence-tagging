@@ -61,6 +61,7 @@ def fill_chapter_dict_from_anchor_list(chapter_dict, anchor_list):
     hrefs = [x.get('href') for x in anchor_list]
     if anchor_list:
         duplicates = set(hrefs) & set(chapter_dict.keys())
+        print(f"Duplicates found: {duplicates}")
         if duplicates:
             return
         for anchor in anchor_list:
