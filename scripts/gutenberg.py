@@ -124,7 +124,7 @@ def get_chapters(soup, ch_list):
     print(ch_list)
     
     cnum = len(ch_list)
-    chapter_dict = {}
+    chapter_dict = OrderedDict()
     try:
         for i in range(cnum):
             ch_start = ch_list[i].get('href')[1:]
@@ -155,7 +155,8 @@ def get_chapters(soup, ch_list):
                     pnum += 1
                 curr = curr.find_next()
             chapter_name = clean_string(ch_list[i].string)
-            chapter_dict[chapter_name] = paragraph_dict
+            if "footnotes" not in chapter_name.lower():
+                chapter_dict[chapter_name] = paragraph_dict
     except:
         return None
     return chapter_dict
