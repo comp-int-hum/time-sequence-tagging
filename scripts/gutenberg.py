@@ -4,6 +4,7 @@ import argparse
 import re
 import os
 import csv
+from collections import OrderedDict
 import jsonlines
 import json
 
@@ -56,38 +57,59 @@ def is_content_table(table):
                 return True
     return False
 
+def fill_chapter_dict_from_anchor_list(chapter_dict, anchor_list):
+    hrefs = [x.get('href') for x in anchor_list]
+    if anchor_list:
+        duplicates = set(hrefs) & set(chapter_dict.keys())
+        if duplicates:
+            return
+        for anchor in anchor_list:
+            chapter_dict[anchor.get('href')] = anchor
+
+def fill_volume_dict_from_table(book_volume_dict, table):
+    if is_content_table(table):
+        ch_links = table.find_all('a')
+        if ch_links:
+            book_volume_dict[table.previous_sibling.string] = ch_links # Use header of table as name of volume
+# book_volume_links
+    # ch_links
+    # ch_links
+
+def fill_volume_dict_from_headers(book_volume_dict, headers):
+    if not headers:
+        return
+    for header in headers:
+        if is_volume_header(header):
+            next = header.find_next_sibling()
+            if next:
+                ch_links = next.find_all('a')
+                if ch_links:
+                    book_volume_dict[header.string] = ch_links
+
+
 def get_volume_links(soup):
-    volume_links = {}
+    book_volume_links = OrderedDict()
+    ch_links = OrderedDict()
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
-        ch_links = []
+        # Assumption: only one volume for this kind of style
         for instance in paragraph_toc_class:
-            links = instance.find_all('a')
-            if links:
-                ch_links.extend(instance.find_all('a'))
-        volume_links[" "] = ch_links # Default behavior for one volume book
+            anchor_links = instance.find_all('a')
+            fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        book_volume_links[" "] = ch_links # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
+        # Frequently multi-volume texts
         tables = soup.find_all('table')
         for table in tables:
-            if is_content_table(table):
-                ch_links = table.find_all('a')
-                if ch_links:
-                    volume_links[table.previous_sibling.string] = ch_links # Use header of table as name of volume
+            fill_volume_dict_from_table(book_volume_links, table)
     else:
+        # Usually only one volume so only get info from first toc found
         toc_div = soup.find('div', attrs={"class":"toc"})
         if toc_div:
             headers = toc_div.find_all('h2')
-            if headers:
-                for header in headers:
-                    ch_links = []
-                    if is_volume_header(header):
-                        next = header.find_next_sibling()
-                        if next:
-                            ch_links = next.find_all('a')
-                            if ch_links:
-                                volume_links[header.string] = ch_links
+            fill_volume_dict_from_headers(book_volume_links, headers)
     
-    return volume_links
+    return book_volume_links
 
 
 
