@@ -175,13 +175,16 @@ if __name__ == "__main__":
     data = []
     with open(args.input) as catalog:
         csv_reader = csv.DictReader(catalog)
+        potential_docs = 0
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i != 20:
-                continue
+            if i > 100:
+                break
+            
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
             if is_lang_lit and row["Title"].strip():
+                potential_docs += 1
                 text_num = row["Text#"]
                 file_path = get_gb_html_dir(args.base_dir, text_num)
                 print(f"Text number: {text_num}")
@@ -201,7 +204,9 @@ if __name__ == "__main__":
                                 data.append(result)
     for d in data:
         assert(d != {})
-        
+
+    print(f"Potential docs: {potential_docs}")
+    print(f"Actual docs: {len(data)}")
     with jsonlines.open(args.outputs[0], "w") as writer:
         writer.write_all(data)
 
