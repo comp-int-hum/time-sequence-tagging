@@ -65,7 +65,6 @@ def fill_chapter_dict_from_anchor_list(chapter_dict, anchor_list):
     hrefs = [x.get('href') for x in anchor_list]
     if anchor_list:
         duplicates = set(hrefs) & set(chapter_dict.keys())
-        print(f"Duplicates found: {duplicates}")
         if duplicates:
             return
         for anchor in anchor_list:
@@ -206,7 +205,6 @@ if __name__ == "__main__":
                 if os.path.isfile(file_path):
                     with open(file_path, "rb") as fpointer:
                         soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
-                        print(soup.original_encoding)
                         result = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
                         volume_links = get_volume_links(soup)
                         for header, volume in volume_links.items():
