@@ -103,20 +103,19 @@ def get_volume_links(soup):
         poss_files += 1
         # Assumption: only one volume for this kind of style
         ch_links = OrderedDict()
-        if is_volume_header(paragraph_toc_class[0].get_text()):
-            print("is volume header paragraph toc")
-            next = paragraph_toc_class[0].find_next_sibling()
-            if next:
-                print('got next')
-                # print(f'next: {next}')
-                anchor_links = next.find_all('a')
-                # print(f"Anchor links {anchor_links}")
-                fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
-        else:
-            print("regular toc")
-            for instance in paragraph_toc_class:
-                anchor_links = instance.find_all('a')
-                fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        # if is_volume_header(paragraph_toc_class[0].get_text()):
+        #     print("is volume header paragraph toc")
+        #     next = paragraph_toc_class[0].find_next_sibling()
+        #     if next:
+        #         print('got next')
+        #         # print(f'next: {next}')
+        #         anchor_links = next.find_all('a')
+        #         # print(f"Anchor links {anchor_links}")
+        #         fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        print("regular toc")
+        for instance in paragraph_toc_class:
+            anchor_links = instance.find_all('a')
+            fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
         
         book_volume_links[" "] = list(ch_links.values()) # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
@@ -169,7 +168,7 @@ def get_chapters(soup, ch_list):
                     paragraph_dict[pnum] = par
                     pnum += 1
             curr = curr.find_next()
-        chapter_name = ch_list[i].string
+        chapter_name = ch_list[i].string if ch_list[i].string else str(i)
         print(f"Chapter name: {chapter_name}")
         if "footnotes" not in chapter_name.lower():
             chapter_dict[clean_string(chapter_name)] = paragraph_dict
