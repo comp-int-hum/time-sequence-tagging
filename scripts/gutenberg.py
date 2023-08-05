@@ -125,40 +125,38 @@ def get_chapters(soup, ch_list):
     
     cnum = len(ch_list)
     chapter_dict = OrderedDict()
-    try:
-        for i in range(cnum):
-            ch_start = ch_list[i].get('href')[1:]
-            ch_end = ch_list[i+1].get('href')[1:] if (i+1) < cnum else None
+    for i in range(cnum):
+        ch_start = ch_list[i].get('href')[1:]
+        ch_end = ch_list[i+1].get('href')[1:] if (i+1) < cnum else None
 
-            # print(f"Start: {ch_start}")
-            # print(f"ch_start href: {ch_start.get('href')}")
-            # print(f"ch_end href: {ch_end.get('href')}")
-            start = soup.find('a', id=ch_start) or soup.find('a', attrs = {"name":ch_start})
-            # print(f"Start mod: {start}")
-            end = soup.find('a', id=ch_end) or soup.find('a', attrs = {"name": ch_end}) if ch_end else None
-            
-            paragraph_dict = {}
-            pnum = 0
+        # print(f"Start: {ch_start}")
+        # print(f"ch_start href: {ch_start.get('href')}")
+        # print(f"ch_end href: {ch_end.get('href')}")
+        start = soup.find('a', id=ch_start) or soup.find('a', attrs = {"name":ch_start})
+        # print(f"Start mod: {start}")
+        end = soup.find('a', id=ch_end) or soup.find('a', attrs = {"name": ch_end}) if ch_end else None
+        
+        paragraph_dict = {}
+        pnum = 0
 
-            curr = start.find_next()
-            while curr and curr != end:
-                if curr.find_all('a', attrs = {"name": ch_end}): # next anchor embedded within current element
-                    break
-                if curr.name == "p":
-                    # print(curr.get_text())
-                    # print("\n")
-                    par = clean_string(curr.get_text())
-                    # par = curr.get_text().replace('\r', '').replace('\n', '')
-                    # par = re.sub(r'\s+', ' ', par).strip()
-                    # if par:
-                    paragraph_dict[pnum] = par
-                    pnum += 1
-                curr = curr.find_next()
-            chapter_name = clean_string(ch_list[i].string)
-            if "footnotes" not in chapter_name.lower():
-                chapter_dict[chapter_name] = paragraph_dict
-    except:
-        return None
+        curr = start.find_next()
+        while curr and curr != end:
+            if curr.find_all('a', attrs = {"name": ch_end}): # next anchor embedded within current element
+                break
+            if curr.name == "p":
+                # print(curr.get_text())
+                # print("\n")
+                par = clean_string(curr.get_text())
+                # par = curr.get_text().replace('\r', '').replace('\n', '')
+                # par = re.sub(r'\s+', ' ', par).strip()
+                # if par:
+                paragraph_dict[pnum] = par
+                pnum += 1
+            curr = curr.find_next()
+        chapter_name = clean_string(ch_list[i].string)
+        if "footnotes" not in chapter_name.lower():
+            chapter_dict[chapter_name] = paragraph_dict
+
     return chapter_dict
 
 
