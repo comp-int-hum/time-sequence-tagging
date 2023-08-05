@@ -181,8 +181,8 @@ if __name__ == "__main__":
         potential_docs = 0
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i > 100:
-                break
+            # if i > 100:
+            #     break
             
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
