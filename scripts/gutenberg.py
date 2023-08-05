@@ -98,10 +98,16 @@ def get_volume_links(soup):
     if paragraph_toc_class:
         # Assumption: only one volume for this kind of style
         ch_links = OrderedDict()
-        for instance in paragraph_toc_class:
-            
-            anchor_links = instance.find_all('a')
-            fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        if is_volume_header(paragraph_toc_class[0].string):
+            next = paragraph_toc_class[0].find_next()
+            if next:
+                anchor_links = next.find_all('a')
+                fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        else:
+            for instance in paragraph_toc_class:
+                anchor_links = instance.find_all('a')
+                fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
+        
         print(f"Ch_links: {ch_links}")
         book_volume_links[" "] = list(ch_links.values()) # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
@@ -177,7 +183,7 @@ if __name__ == "__main__":
         potential_docs = 0
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i != 42:
+            if i != 43:
                 continue
             
             locc = row["LoCC"].split(";") if row["LoCC"] else None
