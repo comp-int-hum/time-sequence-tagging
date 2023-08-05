@@ -8,6 +8,8 @@ from collections import OrderedDict
 import jsonlines
 import json
 
+poss_files = 0
+
 # see https://github.com/comp-int-hum/gutenberg-ns-extractor/blob/045bddb8d3b264ea99a33063df5a4b3f2e7134bc/scripts/produce_sentence_corpus.py#L19-L21
 def parse_gb_directory(base_dir, text_num):
     path_elements = "/".join([c for c in text_num[:-1]])
@@ -43,9 +45,11 @@ def get_signifier_words():
     return ["contents", "content", "volume", "book"]
 
 def is_volume_header(header): # get header for what is presumably a volume
+    if not header:
+        return False
     signifier_words = get_signifier_words()
     for word in signifier_words:
-        if word in header:
+        if word in header.lower():
             return True
     return False
 
@@ -93,24 +97,30 @@ def clean_string(str):
 
 def get_volume_links(soup):
     book_volume_links = OrderedDict()
-    
+    global poss_files
     paragraph_toc_class = soup.find_all('p', attrs={"class":"toc"})
     if paragraph_toc_class:
+        poss_files += 1
         # Assumption: only one volume for this kind of style
         ch_links = OrderedDict()
-        if is_volume_header(paragraph_toc_class[0].string):
-            next = paragraph_toc_class[0].find_next()
+        if is_volume_header(paragraph_toc_class[0].get_text()):
+            print("is volume header paragraph toc")
+            next = paragraph_toc_class[0].find_next_sibling()
             if next:
+                print('got next')
+                # print(f'next: {next}')
                 anchor_links = next.find_all('a')
+                # print(f"Anchor links {anchor_links}")
                 fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
         else:
+            print("regular toc")
             for instance in paragraph_toc_class:
                 anchor_links = instance.find_all('a')
                 fill_chapter_dict_from_anchor_list(ch_links, anchor_links)
         
-        print(f"Ch_links: {ch_links}")
         book_volume_links[" "] = list(ch_links.values()) # Default behavior for one volume book
     elif soup.find(attrs={"class":"chapter"}):
+        poss_files +=1
         # Frequently multi-volume texts
         tables = soup.find_all('table')
         for table in tables:
@@ -119,15 +129,14 @@ def get_volume_links(soup):
         # Usually only one volume so only get info from first toc found
         toc_div = soup.find('div', attrs={"class":"toc"})
         if toc_div:
+            poss_files += 1
             headers = toc_div.find_all('h2')
             fill_volume_dict_from_headers(book_volume_links, headers)
-    print(book_volume_links)
     return book_volume_links
 
 
 
 def get_chapters(soup, ch_list):
-    print(ch_list)
     
     cnum = len(ch_list)
     chapter_dict = OrderedDict()
@@ -160,9 +169,10 @@ def get_chapters(soup, ch_list):
                     paragraph_dict[pnum] = par
                     pnum += 1
             curr = curr.find_next()
-        chapter_name = clean_string(ch_list[i].string)
+        chapter_name = ch_list[i].string
+        print(f"Chapter name: {chapter_name}")
         if "footnotes" not in chapter_name.lower():
-            chapter_dict[chapter_name] = paragraph_dict
+            chapter_dict[clean_string(chapter_name)] = paragraph_dict
 
     return chapter_dict
 
@@ -183,8 +193,8 @@ if __name__ == "__main__":
         potential_docs = 0
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i != 43:
-                continue
+            if i > 100:
+                break
             
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
@@ -201,7 +211,7 @@ if __name__ == "__main__":
                         result = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
                         volume_links = get_volume_links(soup)
                         for header, volume in volume_links.items():
-                            print(f"Header: {header}")
+                            # print(f"Header: {header}")
                             if header.strip():
                                 result["title"] += " -- " + header
                             result["segments"] = get_chapters(soup, volume)
@@ -210,7 +220,7 @@ if __name__ == "__main__":
     for d in data:
         assert(d != {})
 
-    print(f"Potential docs: {potential_docs}")
+    print(f"Potential docs: {poss_files}")
     print(f"Actual docs: {len(data)}")
     with jsonlines.open(args.outputs[0], "w") as writer:
         writer.write_all(data)
