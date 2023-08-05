@@ -150,8 +150,9 @@ def get_chapters(soup, ch_list):
                 # par = curr.get_text().replace('\r', '').replace('\n', '')
                 # par = re.sub(r'\s+', ' ', par).strip()
                 # if par:
-                paragraph_dict[pnum] = par
-                pnum += 1
+                if par:
+                    paragraph_dict[pnum] = par
+                    pnum += 1
             curr = curr.find_next()
         chapter_name = clean_string(ch_list[i].string)
         if "footnotes" not in chapter_name.lower():
@@ -176,8 +177,8 @@ if __name__ == "__main__":
         potential_docs = 0
         for i, row in enumerate(csv_reader):
             # For local testing
-            if i > 100:
-                break
+            if i != 42:
+                continue
             
             locc = row["LoCC"].split(";") if row["LoCC"] else None
             is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
