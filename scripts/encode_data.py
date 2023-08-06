@@ -46,22 +46,26 @@ if __name__ == "__main__":
 
 
     with jsonlines.open(args.input) as input, h5py.File(args.output, 'w') as output:
-        for idx, text_list in enumerate(input):
-            group = output.create_group(str(idx))
-            for text in text_list:
-                title = text["title"]
-                print(f"Text title: {title}")
-                for cnum, chapter in enumerate(text["segments"]):
-                    chapter_s = get_chapter_sentences(chapter)
-                    batch = tokenizer(chapter_s, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
-                    bert_output = model(input_ids = batch["input_ids"].to(device),
-                                        attention_mask = batch["attention_mask"].to(device),
-                                        token_type_ids = batch["token_type_ids"].to(device),
-                                        output_hidden_states = True)
+        for idx, text in enumerate(input):
+            print(text["title"])
+            group = output.create_group(text["title"])
+            group["author"] = text["author"]
+
+
+            # for text in text_list:
+            #     title = text["title"]
+            #     print(f"Text title: {title}")
+            #     for cnum, chapter in enumerate(text["segments"]):
+            #         chapter_s = get_chapter_sentences(chapter)
+            #         batch = tokenizer(chapter_s, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
+            #         bert_output = model(input_ids = batch["input_ids"].to(device),
+            #                             attention_mask = batch["attention_mask"].to(device),
+            #                             token_type_ids = batch["token_type_ids"].to(device),
+            #                             output_hidden_states = True)
                 
-                    bert_hidden_states = bert_output["hidden_states"]
-                    cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
-                    group.create_dataset(str(cnum), data=cls_token_batch.numpy())
+            #         bert_hidden_states = bert_output["hidden_states"]
+            #         cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
+            #         group.create_dataset(str(cnum), data=cls_token_batch.numpy())
 
 
 
