@@ -141,16 +141,23 @@ def get_volumes_tables(soup, tables):
 # Get volumes
 def get_volumes(soup):
     global potential_docs
+    volumes = {}
     if soup.find_all('p', attrs={"class":"toc"}):
         potential_docs += 1
         paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
-        links = get_links(paragraph_toc_elements)
-        return get_volumes_ptoc(soup, links)
+        links = get_links(soup, paragraph_toc_elements)
+        volumes = get_volumes_ptoc(soup, links)
+        print(f"TOC Volumes: {volumes}")
+        return volumes
     
     elif soup.find(attrs={"class":"chapter"}):
         potential_docs += 1
         tables = soup.find_all('table')
-        return get_volumes_tables(soup, tables)
+        volumes = get_volumes_tables(soup, tables)
+        print(f"Chapter Volumes: {volumes}")
+        return volumes
+    return volumes
+    
 
 ## ______________ MAIN ____________________________________
 
@@ -188,6 +195,7 @@ if __name__ == "__main__":
                         soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
                         result = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
                         volumes = get_volumes(soup)
+                        print(type(volumes))
                         for header, chapters in volumes.items():
                             if header.strip():
                                 result["title"] += " -- " + header
