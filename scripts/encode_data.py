@@ -48,6 +48,8 @@ if __name__ == "__main__":
     with jsonlines.open(args.input) as input, h5py.File(args.output, 'w') as output:
         for idx, text in enumerate(input):
             print(text["title"])
+            if text["title"] in output.keys():
+                continue
             group = output.create_group(text["title"])
             group["author"] = text["author"]
 
