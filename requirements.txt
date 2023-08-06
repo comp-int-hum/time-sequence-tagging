@@ -4,3 +4,4 @@ lxml
 transformers
 h5py
 jsonlines
+torch
