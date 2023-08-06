@@ -35,6 +35,8 @@ def is_content_table(table):
 def get_signifier_words():
     return ["contents", "content", "volume", "book"]
 
+def valid_volume_header(string):
+    return string.strip() and "footnotes" not in string.lower()
 ## ______________ END HELPER FUNCTIONS ______________________
 
 
@@ -94,15 +96,26 @@ def get_volumes_ptoc(soup, links):
         second_href = toc_hrefs[i+1] if i+1 < len(toc_hrefs) else None
         chapter_content = get_chapter(soup, first_href, second_href)
         if not chapter_content: # if not a chapter, just a link
-            if not curr_vol_name: # if not empty
-                volumes[curr_vol_name] = chapter_dict # add previous volume
-            curr_vol_name = clean_string(toc_anchors[i].string) # update to new vol_name
-            chapter_dict = OrderedDict() # new empty dict
+            volumes[curr_vol_name] = chapter_dict
+            # if valid_volume_header(curr_vol_name): # if not empty and not footnote
+            #     volumes[curr_vol_name] = chapter_dict # add previous volume
+            #     print(f"TOC anchor: {curr_vol_name}")
+            new_vol_name = clean_string(toc_anchors[i].get_text()) # update to new vol_name
+            if valid_volume_header(new_vol_name):
+                curr_vol_name = new_vol_name
+                chapter_dict = OrderedDict() # new empty dict
+            print(f"New volume name: {curr_vol_name}")
         else: # if valid chapter
-            chapter_name = clean_string(toc_anchors[i].string)
+            chapter_name = clean_string(toc_anchors[i].get_text())
             if "footnotes" not in chapter_name.lower():
+                print(f"Chapter name: {chapter_name}")
                 chapter_dict[chapter_name] = chapter_content
 
+    volumes[curr_vol_name] = chapter_dict
+    print(chapter_dict)
+    if not volumes[""]:
+        volumes.pop("")
+    # print(volumes)
     return volumes
 
 # Input: links for one volume
@@ -118,7 +131,7 @@ def get_chapters(soup, links):
         if not chapter_content: # if not a chapter --> unexpected behavior
             break
         else: # if valid chapter
-            chapter_name = clean_string(toc_anchors[i].string)
+            chapter_name = clean_string(toc_anchors[i].get_text())
             if "footnotes" not in chapter_name.lower():
                 chapter_dict[chapter_name] = chapter_content
 
@@ -147,14 +160,14 @@ def get_volumes(soup):
         paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
         links = get_links(soup, paragraph_toc_elements)
         volumes = get_volumes_ptoc(soup, links)
-        print(f"TOC Volumes: {volumes}")
+        # print(f"TOC Volumes: {volumes}")
         return volumes
     
     elif soup.find(attrs={"class":"chapter"}):
         potential_docs += 1
         tables = soup.find_all('table')
         volumes = get_volumes_tables(soup, tables)
-        print(f"Chapter Volumes: {volumes}")
+        # print(f"Chapter Volumes: {volumes}")
         return volumes
     return volumes
     
@@ -171,37 +184,59 @@ if __name__ == "__main__":
 
     print(f"Outputs: {args.outputs}")
     print(f"Input: {args.input}")
-    data = []
-    with open(args.input) as catalog:
-        csv_reader = csv.DictReader(catalog)
-        potential_docs = 0
-        for i, row in enumerate(csv_reader):
-            # For local testing
-            # if i > 100:
-            #     break
 
-            # if i != x:
-            #   continue
-            
-            locc = row["LoCC"].split(";") if row["LoCC"] else None
-            is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
-            if is_lang_lit and row["Title"].strip():
-                text_num = row["Text#"]
-                file_path = get_gb_html_dir(args.base_dir, text_num)
-                print(f"Text number: {text_num}")
+    data = []
+    if args.local:
+        files = os.listdir(args.base_dir)
+        for filename in files:
+            file_path = os.path.join(args.base_dir, filename)
+            if os.path.isfile(file_path):
                 print(f"File Path: {file_path}")
-                if os.path.isfile(file_path):
-                    with open(file_path, "rb") as fpointer:
-                        soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
-                        result = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
-                        volumes = get_volumes(soup)
-                        print(type(volumes))
-                        for header, chapters in volumes.items():
-                            if header.strip():
-                                result["title"] += " -- " + header
-                            result["segments"] = chapters
-                            if result["segments"]:
-                                data.append(result)
+                with open(file_path, 'r') as file:
+                    soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
+                    volumes = get_volumes(soup)
+                    # print(volumes.items())
+                    print(volumes.keys())
+                    print(volumes.values())
+                    metadata = {"title": str(file)}
+                    for header, chapters in volumes.items():
+                        result = metadata.copy()
+                        if header.strip():
+                            result["title"] += " -- " + header
+                        result["segments"] = chapters
+                        if result["segments"]:
+                            data.append(result)
+    else:
+        with open(args.input) as catalog:
+            csv_reader = csv.DictReader(catalog)
+            potential_docs = 0
+            for i, row in enumerate(csv_reader):
+                # For local testing
+                # if i > 100:
+                #     break
+
+                # if i != x:
+                #   continue
+                
+                locc = row["LoCC"].split(";") if row["LoCC"] else None
+                is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
+                if is_lang_lit and row["Title"].strip():
+                    text_num = row["Text#"]
+                    file_path = get_gb_html_dir(args.base_dir, text_num)
+                    print(f"Text number: {text_num}")
+                    print(f"File Path: {file_path}")
+                    if os.path.isfile(file_path):
+                        with open(file_path, "rb") as fpointer:
+                            soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
+                            metadata = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
+                            volumes = get_volumes(soup)
+                            for header, chapters in volumes.items():
+                                result = metadata.copy()
+                                if header.strip():
+                                    result["title"] += " -- " + header
+                                result["segments"] = chapters
+                                if result["segments"]:
+                                    data.append(result)
     for d in data:
         assert(d != {})
 
