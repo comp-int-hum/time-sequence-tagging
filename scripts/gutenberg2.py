@@ -112,7 +112,6 @@ def get_volumes_ptoc(soup, links):
                 chapter_dict[chapter_name] = chapter_content
 
     volumes[curr_vol_name] = chapter_dict
-    print(chapter_dict)
     if not volumes[""]:
         volumes.pop("")
     # print(volumes)
