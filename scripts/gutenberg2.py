@@ -35,8 +35,18 @@ def is_content_table(table):
 def get_signifier_words():
     return ["contents", "content", "volume", "book"]
 
+def get_invalid_words():
+    return ["footnotes", "index"]
+
+def contains_invalid_words(string):
+    invalid_words = get_invalid_words()
+    for invalid in invalid_words:
+        if invalid in string.lower():
+            return True
+    return False
+
 def valid_volume_header(string):
-    return string.strip() and "footnotes" not in string.lower()
+    return string.strip() and not contains_invalid_words(string)
 ## ______________ END HELPER FUNCTIONS ______________________
 
 
@@ -53,6 +63,8 @@ def get_chapter(soup, first, second):
     paragraph_dict = {}
     pnum = 0
     while curr != end:
+        if not curr:
+            return None
         if curr.find('a', id=second) or curr.find('a', attrs = {"name": second}):
             # next anchor embedded within current element
             break
@@ -112,7 +124,7 @@ def get_volumes_ptoc(soup, links):
                 chapter_dict[chapter_name] = chapter_content
 
     volumes[curr_vol_name] = chapter_dict
-    print(chapter_dict)
+    # print(chapter_dict)
     if not volumes[""]:
         volumes.pop("")
     # print(volumes)
@@ -197,7 +209,6 @@ if __name__ == "__main__":
                     volumes = get_volumes(soup)
                     # print(volumes.items())
                     print(volumes.keys())
-                    print(volumes.values())
                     metadata = {"title": str(file)}
                     for header, chapters in volumes.items():
                         result = metadata.copy()
@@ -247,6 +258,10 @@ if __name__ == "__main__":
 
     with open(args.outputs[1], "w") as output:
         json.dump(data, output)
+
+
+# if __name__ == "__main__":
+#     print(contains_invalid_words("CHAPTER I"))
 
 # BeautifulSoup functionality testing
 # if __name__ == "__main__":
