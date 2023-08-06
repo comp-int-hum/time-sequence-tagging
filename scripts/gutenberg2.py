@@ -168,19 +168,22 @@ def get_volumes_tables(soup, tables):
 def get_volumes(soup):
     global potential_docs
     volumes = {}
-    if soup.find_all('p', attrs={"class":"toc"}):
-        potential_docs += 1
-        paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
-        links = get_links(paragraph_toc_elements)
-        volumes = get_volumes_ptoc(soup, links)
-        # print(f"TOC Volumes: {volumes}")
-        return volumes
-    
-    elif soup.find(attrs={"class":"chapter"}):
-        potential_docs += 1
-        tables = soup.find_all('table')
-        volumes = get_volumes_tables(soup, tables)
-        # print(f"Chapter Volumes: {volumes}")
+    try:
+        if soup.find_all('p', attrs={"class":"toc"}):
+            potential_docs += 1
+            paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
+            links = get_links(paragraph_toc_elements)
+            volumes = get_volumes_ptoc(soup, links)
+            # print(f"TOC Volumes: {volumes}")
+            return volumes
+        
+        elif soup.find(attrs={"class":"chapter"}):
+            potential_docs += 1
+            tables = soup.find_all('table')
+            volumes = get_volumes_tables(soup, tables)
+            # print(f"Chapter Volumes: {volumes}")
+            return volumes
+    except:
         return volumes
     return volumes
     
