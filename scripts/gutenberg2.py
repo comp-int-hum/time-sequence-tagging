@@ -81,7 +81,7 @@ def get_chapter(soup, first, second):
 
 # Input: list of elements containing anchors
 # Output: dict of non-duplicate links
-def get_links(soup, elements):
+def get_links(elements):
     links = OrderedDict()
     for ele in elements:
         anchors = ele.find_all('a')
@@ -92,7 +92,8 @@ def get_links(soup, elements):
             if duplicates:
                 break
             for anchor in anchors:
-                links[anchor.get('href')[1:]] = anchor
+                if "image" not in anchor.get('href')[1:]:
+                    links[anchor.get('href')[1:]] = anchor
     return links
 
 # Input: soup object, OrderedDict of links (href, anchor element)
@@ -156,7 +157,7 @@ def get_volumes_tables(soup, tables):
     
     for table in tables:
         if is_content_table(table) and table.previous_sibling and table.previous_sibling.string:
-            links = get_links(soup, [table])
+            links = get_links([table])
             chapter_dict = get_chapters(soup, links)
             if chapter_dict:
                 volume_name = clean_string(table.previous_sibling.string)
@@ -170,7 +171,7 @@ def get_volumes(soup):
     if soup.find_all('p', attrs={"class":"toc"}):
         potential_docs += 1
         paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
-        links = get_links(soup, paragraph_toc_elements)
+        links = get_links(paragraph_toc_elements)
         volumes = get_volumes_ptoc(soup, links)
         # print(f"TOC Volumes: {volumes}")
         return volumes
