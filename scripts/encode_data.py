@@ -5,6 +5,7 @@ from transformers import BertModel, BertTokenizer
 import torch
 import h5py
 import jsonlines
+import torch
 
 def get_chapter_sentences(segment):
     all_sent = []
@@ -13,9 +14,9 @@ def get_chapter_sentences(segment):
         all_sent.extend(sentences)
     return all_sent
 
-def get_paragraph_sentences(segment):
+def get_paragraph_sentences(chapter):
     sentences = {}
-    for i, paragraph in enumerate(segment):
+    for i, paragraph in enumerate(list(chapter.values())):
         print(paragraph)
         sentences[i] = get_sentences(paragraph)
     return sentences
@@ -23,8 +24,17 @@ def get_paragraph_sentences(segment):
 def get_sentences(paragraph):
     return re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', paragraph)
 
-def get_batches(segment):
-    chapter_s = get_chapter_sentences(segment)
+# def get_batches(segment):
+#     chapter_s = get_chapter_sentences(segment)
+#     # TODO: finish
+
+def save_dict_to_hdf5(pointer, dict):
+    pub_info = pointer.create_group("pub_info")
+    if dict:
+        for key, val in dict.items():
+            pub_info[key] = val
+
+
 
 if __name__ == "__main__":
 
@@ -38,9 +48,6 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         device = "cuda"
 
-    with open(args.input) as fp:
-        data = json.load(fp)
-
     tokenizer = BertTokenizer.from_pretrained(args.model_name)
     model = BertModel.from_pretrained(args.model_name)
 
@@ -52,22 +59,21 @@ if __name__ == "__main__":
                 continue
             group = output.create_group(text["title"])
             group["author"] = text["author"]
+            group["edition"] = text["edition"]
+            save_dict_to_hdf5(group, text["pub_info"])
 
-
-            # for text in text_list:
-            #     title = text["title"]
-            #     print(f"Text title: {title}")
-            #     for cnum, chapter in enumerate(text["segments"]):
-            #         chapter_s = get_chapter_sentences(chapter)
-            #         batch = tokenizer(chapter_s, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
-            #         bert_output = model(input_ids = batch["input_ids"].to(device),
-            #                             attention_mask = batch["attention_mask"].to(device),
-            #                             token_type_ids = batch["token_type_ids"].to(device),
-            #                             output_hidden_states = True)
-                
-            #         bert_hidden_states = bert_output["hidden_states"]
-            #         cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
-            #         group.create_dataset(str(cnum), data=cls_token_batch.numpy())
+            for cnum, ch_name, ch_content in enumerate(text["segments"].items()):
+                chapter_s = get_chapter_sentences(ch_content)
+                batch = tokenizer(chapter_s, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
+                bert_output = model(input_ids = batch["input_ids"].to(device),
+                                    attention_mask = batch["attention_mask"].to(device),
+                                    token_type_ids = batch["token_type_ids"].to(device),
+                                    output_hidden_states = True)
+            
+                bert_hidden_states = bert_output["hidden_states"]
+                cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
+                chapter_folder = group.create_group(str(cnum))
+                chapter_folder.create_dataset(str(ch_name), data=cls_token_batch.numpy())
 
 
 
