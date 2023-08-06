@@ -52,7 +52,7 @@ env = Environment(
     BUILDERS={
         "ProcessData" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/gutenberg.py --base_dir ${DATAPATH_2} --input ${SOURCES} --output ${TARGETS}",
+            action="python scripts/gutenberg2.py --base_dir ${DATAPATH_2} --input ${SOURCES} --output ${TARGETS}",
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
