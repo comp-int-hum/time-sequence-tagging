@@ -38,8 +38,6 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         device = "cuda"
 
-    with open(args.input) as fp:
-        data = json.load(fp)
 
     tokenizer = BertTokenizer.from_pretrained(args.model_name)
     model = BertModel.from_pretrained(args.model_name)
