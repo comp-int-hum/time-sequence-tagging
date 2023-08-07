@@ -72,10 +72,13 @@ if __name__ == "__main__":
             #     continue
             # else:
             #     duplicates.add(text["title"])
-            chapter = {}
+            chapters = []
             for cnum, (ch_name, ch_content) in enumerate(text["segments"].items()):
+                chapter = {}
                 chapter_by_par = get_paragraph_sentences(ch_content)
                 print(f"Chapter name: {ch_name}")
+                
+                # Iterate through paragraphs in chapters, grabbing sentence embeddings per paragraph
                 for pnum, sents in chapter_by_par.items():
 
                     batch = tokenizer(sents, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
@@ -89,11 +92,12 @@ if __name__ == "__main__":
                     assert(len(sents) == cls_token_batch.size(0))
                     s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
                     chapter[str(pnum)] = [s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings]
-
+                
+                chapters.append(chapter)
 
                 # chapter_folder = group.create_group(str(cnum))
                 # chapter_folder.create_dataset(str(ch_name), data=cls_token_batch.numpy())
-            encoded_data[text["title"]] = chapter
+            encoded_data[text["title"]] = chapters
         json.dump(encoded_data, output)
 
     # with jsonlines.open(args.input) as input, h5py.File(args.output, 'w') as output:
