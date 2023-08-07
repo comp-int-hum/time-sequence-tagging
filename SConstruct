@@ -24,8 +24,8 @@ import pickle
 # example, changing the number of folds).
 vars = Variables("custom.py")
 vars.AddVariables(
-    ("DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
-    ("DATAPATH_2", "", "/export/large_corpora/gutenberg/"),
+    ("WW_DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
+    ("PG_DATAPATH", "", "/export/large_corpora/gutenberg/"),
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("LOCAL_PG", "", "/export/large_corpora/gutenberg/2/7/0/2701/2701-h/2701-h.htm"),
@@ -34,6 +34,9 @@ vars.AddVariables(
     ("SEGMENT_BY_PG", "", "paragraph"),
     ("MODEL_NAME", "", "bert-base-uncased"),
     ("MAX_TOKS", "", 512),
+    ("LOCAL", "", True),
+    ("LOCAL_TEST", "", "./test/")
+    ("TRAIN_FILE_SIZE", "Number of texts to grab chapters from", 2)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -50,9 +53,16 @@ env = Environment(
     # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
+        "ProcessDataLocal" : Builder(
+            # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
+            action="python scripts/gutenberg.py --base_dir ${LOCAL_TEST} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
+        ),
         "ProcessData" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/gutenberg2.py --base_dir ${DATAPATH_2} --input ${SOURCES} --output ${TARGETS}",
+            action="python scripts/gutenberg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
+        ),
+        "ShuffleData": Builder(
+            action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --train_files ${TRAIN_FILE_SIZE}"
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
@@ -78,6 +88,12 @@ env = Environment(
 # ("sources") to later ones, and how some outputs are also gathered into the "results"
 # variable, so they can be summarized together after each experiment runs.
 
-# env.ProcessData(source = env["DATA_PATH"] , target = "test.txt")
-env.ProcessData(source = env["PG_CATALOG"] , target = ["gutenberg.jsonl", "test.txt"])
-# env.EncodeData(source = ["results.json"], target = "encoded.h5")
+
+# TODO: Fix this. It's horrific. I'm sorry.
+
+if env["LOCAL"]:
+    env.ProcessDataLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+else:
+    env.ProcessData(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+env.ShuffleData(source = "work/gutenberg.jsonl", target = "work/shuffled_gutenberg.jsonl")
+env.EncodeData(source = ["work/shuffled_gutenberg.jsonl"], target = "work/encoded.jsonl")
