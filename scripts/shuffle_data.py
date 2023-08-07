@@ -21,7 +21,8 @@ if __name__ == "__main__":
             data.append(text)
         random.shuffle(data)
 
-        for i in range(args.num_files):
+        minimum = min(args.num_files, len(data))
+        for i in range(minimum):
             writer.write(data[i])
         
             
