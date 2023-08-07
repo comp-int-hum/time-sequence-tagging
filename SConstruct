@@ -35,7 +35,7 @@ vars.AddVariables(
     ("MODEL_NAME", "", "bert-base-uncased"),
     ("MAX_TOKS", "", 512),
     ("LOCAL", "", True),
-    ("LOCAL_TEST", "", "./test/")
+    ("LOCAL_TEST", "", "./test/"),
     ("TRAIN_FILE_SIZE", "Number of texts to grab chapters from", 2)
 )
 
