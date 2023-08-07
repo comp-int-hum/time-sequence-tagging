@@ -1,17 +1,27 @@
 import argparse
+from transformers import BertModel, BertConfig
+import jsonlines
+import random
 
-#
-# This script does *nothing* except print out its arguments and touch any files
-# specified as outputs (thus fulfilling a build system's requirements for
-# success).
-#
+
+# I'll rethink this file in the future.
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--outputs", dest="outputs", nargs="+", help="Output files")
+    parser.add_argument("--input", dest="input", help="File containing gutenberg & women writers project")
+    parser.add_argument("--output", dest="output", help="Output files")
+    parser.add_argument("--train_files", type=int, dest="num_files")
     args, rest = parser.parse_known_args()
 
-    print("Building files {} from arguments {}".format(args.outputs, rest))
-    for fname in args.outputs:
-        with open(fname, "wt") as ofd:
-            pass
+    data = []
+    with jsonlines.open(args.input, mode="r") as reader, jsonlines.open(args.output, mode="w") as writer:
+        # For line in jsonlines
+        for text in reader:
+            data.append(text)
+        random.shuffle(data)
+
+        for i in range(args.num_files):
+            writer.write(data[i])
+        
+            
