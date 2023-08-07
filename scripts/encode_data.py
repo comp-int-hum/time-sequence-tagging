@@ -102,21 +102,23 @@ if __name__ == "__main__":
     model = BertModel.from_pretrained(args.model_name)
     model.to(device)
 
-    with jsonlines.open(args.input, "r") as input, open(args.output, mode="w") as output:
-
+    with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
         # For line in jsonlines
         for idx, text in enumerate(input):
             encoded_data = {}
-            # encoded_data["title"] = text["title"]
-            # encoded_data["author"] = text["author"]
-            # encoded_data["edition"] = text["edition"]
-            # encoded_data["pub_info"] = text["pub_info"]
+            encoded_data["title"] = text["title"]
+            encoded_data["author"] = text["author"]
+            encoded_data["edition"] = text["edition"]
+            encoded_data["pub_info"] = text["pub_info"]
             chapters = OrderedDict()
             for ch_name, ch_content in text["segments"].items():
                 chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content)
             encoded_data["encoded_segments"] = chapters
-            json.dump(encoded_data, output)
+            writer.write(encoded_data)
 
+            
+
+        
 
 
 #### _______________H5PY TEST CODE __________________
