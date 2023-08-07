@@ -195,14 +195,15 @@ if __name__ == "__main__":
     parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
     parser.add_argument("--input", dest="input", help="csv file")
     parser.add_argument("--output", dest="outputs", nargs="*", help="Name of output files")
-    parser.add_argument("--local", dest="local", nargs="?", help="local files")
+    parser.add_argument("--local", dest="local", help="local files")
     args, rest = parser.parse_known_args()
 
     print(f"Outputs: {args.outputs}")
     print(f"Input: {args.input}")
 
     data = []
-    if args.local:
+    if args.local == "True":
+        print("IS LOCAL")
         files = os.listdir(args.base_dir)
         for filename in files:
             file_path = os.path.join(args.base_dir, filename)
@@ -222,6 +223,7 @@ if __name__ == "__main__":
                         if result["segments"]:
                             data.append(result)
     else:
+        print("IS NOT LOCAL")
         with open(args.input) as catalog:
             csv_reader = csv.DictReader(catalog)
             potential_docs = 0
@@ -238,7 +240,6 @@ if __name__ == "__main__":
                 if is_lang_lit and row["Title"].strip():
                     text_num = row["Text#"]
                     file_path = get_gb_html_dir(args.base_dir, text_num)
-                    print(f"Text number: {text_num}")
                     print(f"File Path: {file_path}")
                     if os.path.isfile(file_path):
                         with open(file_path, "rb") as fpointer:
