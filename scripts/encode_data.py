@@ -91,7 +91,7 @@ if __name__ == "__main__":
                     cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
                     assert(len(sents) == cls_token_batch.size(0))
                     s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
-                    chapter[str(pnum)] = [s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings]
+                    chapter["p" + str(pnum)] = [s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings]
                 
                 chapters[ch_name] = chapter
 
