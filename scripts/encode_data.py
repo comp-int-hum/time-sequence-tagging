@@ -115,7 +115,7 @@ if __name__ == "__main__":
             for ch_name, ch_content in text["segments"].items():
                 chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content)
             encoded_data["encoded_segments"] = chapters
-        json.dump(encoded_data, output)
+            json.dump(encoded_data, output)
 
 
 
