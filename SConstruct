@@ -36,7 +36,9 @@ vars.AddVariables(
     ("MAX_TOKS", "", 512),
     ("LOCAL", "", "False"),
     ("LOCAL_TEST", "", "./test/"),
-    ("TRAIN_FILE_SIZE", "Number of texts to grab chapters from", 500)
+    ("DATA_SIZE", "Number of texts to grab chapters from", 625),
+    ("TRAIN_TEST_SPLIT", "", 0.8)
+    ("SAMPLES", "", 5)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -62,10 +64,13 @@ env = Environment(
             action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
         ),
         "ShuffleData": Builder(
-            action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --train_files ${TRAIN_FILE_SIZE}"
+            action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT}$"
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
+        ),
+        "CreateDatapoints": Builder(
+            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES}"
         )
     }
 )
@@ -97,5 +102,8 @@ if env["LOCAL"] == "True":
 else:
     env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
     print("is not local")
-env.ShuffleData(source = "work/gutenberg.jsonl", target = "work/shuffled_gutenberg.jsonl")
-env.EncodeData(source = ["work/shuffled_gutenberg.jsonl"], target = "work/encoded.jsonl")
+env.ShuffleData(source = "work/gutenberg.jsonl", target = ["work/shuffled_gb_train.jsonl", "work/shuffled_gb_eval.jsonl"])
+env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_encoded.jsonl")
+env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
+env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
+env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
