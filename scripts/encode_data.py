@@ -65,7 +65,7 @@ if __name__ == "__main__":
             #     continue
             # else:
             #     duplicates.add(text["title"])
-            chapters = []
+            chapters = OrderedDict()
             for cnum, (ch_name, ch_content) in enumerate(text["segments"].items()):
                 chapter = {}
                 chapter_by_par = get_paragraph_sentences(ch_content)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
                     s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
                     chapter[str(pnum)] = [s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings]
                 
-                chapters.append(chapter)
+                chapters[ch_name] = chapter
 
                 # chapter_folder = group.create_group(str(cnum))
                 # chapter_folder.create_dataset(str(ch_name), data=cls_token_batch.numpy())
