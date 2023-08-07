@@ -47,13 +47,20 @@ if __name__ == "__main__":
     parser.add_argument("--max_toks", type=int, dest="max_toks")
     args, rest = parser.parse_known_args()
 
-    if torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
+    # if torch.cuda.is_available():
+    #     device = "cuda"
+    # else:
+    #     device = "cpu"
+
+    # print(f"Device: {device}")
+
+    torch.cuda.empty_cache()
+
+    device = "cuda"
 
     tokenizer = BertTokenizer.from_pretrained(args.model_name)
     model = BertModel.from_pretrained(args.model_name)
+    model.to(device)
 
     with jsonlines.open(args.input, "r") as input, open(args.output, mode="w") as output:
         # duplicates = set()
@@ -68,7 +75,7 @@ if __name__ == "__main__":
             chapter = {}
             for cnum, (ch_name, ch_content) in enumerate(text["segments"].items()):
                 chapter_by_par = get_paragraph_sentences(ch_content)
-                
+                print(f"Chapter name: {ch_name}")
                 for pnum, sents in chapter_by_par.items():
 
                     batch = tokenizer(sents, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
