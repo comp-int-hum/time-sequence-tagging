@@ -34,7 +34,7 @@ vars.AddVariables(
     ("SEGMENT_BY_PG", "", "paragraph"),
     ("MODEL_NAME", "", "bert-base-uncased"),
     ("MAX_TOKS", "", 512),
-    ("LOCAL", "", True),
+    ("LOCAL", "", "False"),
     ("LOCAL_TEST", "", "./test/"),
     ("TRAIN_FILE_SIZE", "Number of texts to grab chapters from", 500)
 )
@@ -91,9 +91,11 @@ env = Environment(
 
 # TODO: Fix this. It's horrific. I'm sorry.
 
-if env["LOCAL"]:
+if env["LOCAL"] == "True":
+    print("Is local")
     env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
     env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+    print("is not local")
 env.ShuffleData(source = "work/gutenberg.jsonl", target = "work/shuffled_gutenberg.jsonl")
 env.EncodeData(source = ["work/shuffled_gutenberg.jsonl"], target = "work/encoded.jsonl")
