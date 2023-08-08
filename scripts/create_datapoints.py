@@ -30,6 +30,7 @@ def get_second_half(encoded_chapter):
     return split_chapter(encoded_chapter)[1]
 
 def average_embeddings(sent_embeddings):
+    print(sent_embeddings)
     return [sum(parameter) / len(sent_embeddings) for parameter in zip(*sent_embeddings)]
 
 # input: chapter num and encoded_text
