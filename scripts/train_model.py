@@ -32,9 +32,10 @@ if __name__ == "__main__":
     parser.add_argument("--train", dest="train", help="name of training datapoints file")
     parser.add_argument("--eval", dest="eval", help="name of test datapoints file")
     parser.add_argument("--model_name", dest="model_name", help="Name of best model")
-    parser.add_argument("--emb_dim", dest="emb_dim", help="size of sentence embedding")
-    parser.add_argument("--num_epochs", dest="epochs", help="number of epochs to train")
+    parser.add_argument("--emb_dim", dest="emb_dim", type = int, help="size of sentence embedding")
+    parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
     parser.add_argument("--result", dest="result", help="Name of result file")
+    parser.add_argument("--batch", dest="batch", type = int, help="Batch size")
     args, rest = parser.parse_known_args()
 
     print(f"Is training")
@@ -57,7 +58,9 @@ if __name__ == "__main__":
         running_loss = 0.0
 
         input_len = 0
+
         with jsonlines.open(args.train, 'r') as input:
+            
             for datapoint in input:
                 optimizer.zero_grad()
 
