@@ -79,8 +79,10 @@ if __name__ == "__main__":
                 first_ch = split_chapter(chapters[cnum])
                 positive_dp = create_datapoint(encoded_data, first=first_ch[1], second = get_first_half(chapters[cnum+1]))
                 negative_dp = create_datapoint(encoded_data, first=first_ch[0], second=first_ch[1])
-                positive_dp["first_name"], negative_dp["first_name"], negative_dp["second_name"] = chapter_names[cnum]
+                positive_dp["first_name"] = chapter_names[cnum]
                 positive_dp["second_name"] = chapter_names[cnum+1]
+                negative_dp["first_name"] = chapter_names[cnum]
+                negative_dp["second_name"] = chapter_names[cnum]
                 positive_dp["positive"] = True
                 negative_dp["positive"] = False
                 data.add(positive_dp)
