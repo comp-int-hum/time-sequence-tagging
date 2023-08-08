@@ -66,15 +66,19 @@ if __name__ == "__main__":
             encoded_data["edition"] = text["edition"]
             encoded_data["pub_info"] = text["pub_info"]
             
-            chapters = text["encoded_segments"]
+            chapters = list(text["encoded_segments"].values())
+            chapter_names = list(text["encoded_segments"].values())
             num_chapters = len(chapters)
             num_samples = min(num_chapters, args.samples)
             sample_list = random.sample(range(0, num_chapters-1), num_samples)
 
+
             for cnum in sample_list:
                 first_ch = split_chapter(chapters[cnum])
-                positive_dp = create_datapoint(encoded_data, first=first_ch[0], second=first_ch[1])
-                negative_dp = create_datapoint(encoded_data, first=first_ch[1], second = get_first_half(chapters[cnum+1]))
+                positive_dp = create_datapoint(encoded_data, first=first_ch[1], second = get_first_half(chapters[cnum+1]))
+                negative_dp = create_datapoint(encoded_data, first=first_ch[0], second=first_ch[1])
+                positive_dp["first_name"], negative_dp["first_name"], negative_dp["second_name"] = chapter_names[cnum]
+                positive_dp["second_name"] = chapter_names[cnum+1]
                 positive_dp["positive"] = True
                 negative_dp["positive"] = False
                 data.add(positive_dp)
