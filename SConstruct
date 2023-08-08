@@ -38,7 +38,10 @@ vars.AddVariables(
     ("LOCAL_TEST", "", "./test/"),
     ("DATA_SIZE", "Number of texts to grab chapters from", 625),
     ("TRAIN_TEST_SPLIT", "", 0.8),
-    ("SAMPLES", "", 5)
+    ("SAMPLES", "", 5),
+    ("EMB_DIM", "", 768),
+    ("SAVE_NAME", "", "work/best_model.pt"),
+    ("EPOCHS", "", 50)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -71,6 +74,9 @@ env = Environment(
         ),
         "CreateDatapoints": Builder(
             action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES}"
+        ),
+        "TrainModel": Builder(
+            action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --embedding_dims ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
         )
     }
 )
@@ -107,3 +113,4 @@ env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_e
 env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
 env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
 env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
+env.TrainModel(source = ["work/train_encoded.jsonl", "work/eval_encoded.jsonl"], target = "work/result.txt")
