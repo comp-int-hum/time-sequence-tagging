@@ -76,7 +76,7 @@ env = Environment(
             action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES}"
         ),
         "TrainModel": Builder(
-            action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --embedding_dims ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
+            action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
         )
     }
 )
