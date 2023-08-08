@@ -85,8 +85,8 @@ if __name__ == "__main__":
                 negative_dp["second_name"] = chapter_names[cnum]
                 positive_dp["positive"] = True
                 negative_dp["positive"] = False
-                data.add(positive_dp)
-                data.add(negative_dp)
+                data.append(positive_dp)
+                data.append(negative_dp)
 
         random.shuffle(data)
 
