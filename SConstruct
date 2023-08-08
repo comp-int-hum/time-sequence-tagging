@@ -37,7 +37,7 @@ vars.AddVariables(
     ("LOCAL", "", "False"),
     ("LOCAL_TEST", "", "./test/"),
     ("DATA_SIZE", "Number of texts to grab chapters from", 625),
-    ("TRAIN_TEST_SPLIT", "", 0.8)
+    ("TRAIN_TEST_SPLIT", "", 0.8),
     ("SAMPLES", "", 5)
 )
 
