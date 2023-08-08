@@ -2,8 +2,8 @@ import jsonlines
 from collections import OrderedDict
 import argparse
 import random
-# Input: encoded segments grouped by paragraphs
-# Output: list of encoded segments grouped by chapter
+# # Input: encoded segments grouped by paragraphs
+# # Output: list of encoded segments grouped by chapter
 def get_embeddings_for_chapter(encoded_chapter):
     embeddings = []
     for i in range(len(encoded_chapter)):
@@ -12,10 +12,11 @@ def get_embeddings_for_chapter(encoded_chapter):
     return embeddings
 
 def split_chapter(encoded_chapter):
-    first_half = []
+    sent_embeddings = get_embeddings_for_chapter(encoded_chapter)
+    first_half = [] # list of sentence embeddings (also a list)
     second_half = []
-    half = len(encoded_chapter) / 2
-    for i in range(len(encoded_chapter)):
+    half = len(sent_embeddings) / 2
+    for i, sent_embedding in enumerate(sent_embeddings):
         sent_embedding = encoded_chapter["p" + str(i)]
         if i < half:
             first_half.append(sent_embedding)
