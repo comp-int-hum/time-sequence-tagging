@@ -32,12 +32,17 @@ if __name__ == "__main__":
     parser.add_argument("--train", dest="train", help="name of training datapoints file")
     parser.add_argument("--eval", dest="eval", help="name of test datapoints file")
     parser.add_argument("--model_name", dest="model_name", help="Name of best model")
-    parser.add_argument("--embedding_dims", dest="edims", help="size of sentence embedding")
+    parser.add_argument("--emb_dim", dest="emb_dim", help="size of sentence embedding")
     parser.add_argument("--num_epochs", dest="epochs", help="number of epochs to train")
     parser.add_argument("--result", dest="result", help="Name of result file")
     args, rest = parser.parse_known_args()
 
-    model = BasicBinaryClassifier(input_size = args.edims)
+    torch.cuda.empty_cache()
+
+    device = "cuda"
+
+    model = BasicBinaryClassifier(input_size = args.emb_dim)
+    model.to(device)
 
     loss_fn = nn.CrossEntropyLoss()
 
@@ -55,11 +60,11 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
 
                 # Get inputs
-                first = torch.tensor(datapoint["first"])
-                second = torch.tensor(datapoint["second"])
+                first = torch.tensor(datapoint["first"]).to(device)
+                second = torch.tensor(datapoint["second"]).to(device)
 
                 # Get label
-                label = datapoint["positive"]
+                label = torch.tensor(datapoint["positive"]).to(device)
 
                 # Output and loss
                 output = model(first, second)
