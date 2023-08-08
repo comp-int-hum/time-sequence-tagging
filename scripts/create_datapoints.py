@@ -31,7 +31,6 @@ def get_second_half(encoded_chapter):
     return split_chapter(encoded_chapter)[1]
 
 def average_embeddings(sent_embeddings):
-    print(sent_embeddings)
     return [sum(parameter) / len(sent_embeddings) for parameter in zip(*sent_embeddings)]
 
 # input: chapter num and encoded_text
@@ -71,7 +70,7 @@ if __name__ == "__main__":
             chapters = list(text["encoded_segments"].values())
             chapter_names = list(text["encoded_segments"].values())
             num_chapters = len(chapters)
-            num_samples = min(num_chapters, args.samples)
+            num_samples = min(num_chapters-1, args.samples)
             sample_list = random.sample(range(0, num_chapters-1), num_samples)
 
 
