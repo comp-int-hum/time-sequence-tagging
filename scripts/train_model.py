@@ -37,6 +37,8 @@ if __name__ == "__main__":
     parser.add_argument("--result", dest="result", help="Name of result file")
     args, rest = parser.parse_known_args()
 
+    print(f"Is training")
+
     torch.cuda.empty_cache()
 
     device = "cuda"
