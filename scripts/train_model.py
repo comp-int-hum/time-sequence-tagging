@@ -1,58 +1,101 @@
 import argparse
 import torch
-from torch.utils.data import Dataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
-import os
-import h5py
-import random
+import jsonlines
+import torch.nn as nn
+import torch.optim as optim
 
-class NarrativeUnitDataset(Dataset):
-    def __init__(self, embedding_dir, transform=None, target_transform=None):
-        self.embedding_dir = embedding_dir
-        with h5py.File(self.embedding_dir, 'r') as hf:
-            self.len = len(hf)
-        self.transform = transform
-        self.target_transform = target_transform
-
-    def __len__(self):
-        return self.len
-
-    def __getitem__(self, idx):
-        with h5py.File(self.embedding_dir, 'r') as hf:
-            group = hf[str(idx)]
-            chapters = len(group)
+class BasicBinaryClassifier(nn.Module):
+    def __init__(self, input_size):
+        super().__init__()
+        self.fc1 = nn.Linear(input_size, 256)
+        nn.init.kaiming_normal_(self.fc1.weight, mode="fan_in")
+        self.fc2 = nn.Linear(256, 128)
+        nn.init.kaiming_normal_(self.fc2.weight, mode="fan_in")
+        self.fc3 = nn.Linear(128,1)
+        nn.init.kaiming_normal_(self.fc3.weight, mode="fan_in")
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU()
         
-        random_chapter_num = random.randrange(chapters-1)
+    def forward(self, first, second):
+        x = torch.cat((first, second), dim = 1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.sigmoid(x)
+        return x
+        
 
-        rand_chapter_embedding = group[str(random_chapter_num)]
-
-        example_type = random.choice("Positive", "Negative")
-
-        if example_type == "Positive":
-            # TODO: write positive example code
-        else:
-            # TODO: write negative example code
-
-        if self.transform:
-            image = self.transform(image)
-        if self.target_transform:
-            label = self.target_transform(label)
-        return image, label
-    
-
-#
-# This script does *nothing* except print out its arguments and touch any files
-# specified as outputs (thus fulfilling a build system's requirements for
-# success).
-#
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--outputs", dest="outputs", nargs="+", help="Output files")
+    parser.add_argument("--train", dest="train", help="name of training datapoints file")
+    parser.add_argument("--eval", dest="eval", help="name of test datapoints file")
+    parser.add_argument("--model_name", dest="model_name", help="Name of best model")
+    parser.add_argument("--embedding_dims", dest="edims", help="size of sentence embedding")
+    parser.add_argument("--num_epochs", dest="epochs", help="number of epochs to train")
+    parser.add_argument("--result", dest="result", help="Name of result file")
     args, rest = parser.parse_known_args()
 
-    print("Building files {} from arguments {}".format(args.outputs, rest))
-    for fname in args.outputs:
-        with open(fname, "wt") as ofd:
-            pass
+    model = BasicBinaryClassifier(input_size = args.edims)
+
+    loss_fn = nn.CrossEntropyLoss()
+
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    num_epochs = args.epochs
+    best_accuracy = 0
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+
+        input_len = 0
+        with jsonlines.open(args.train, 'r') as input:
+            for datapoint in input:
+                optimizer.zero_grad()
+
+                # Get inputs
+                first = torch.tensor(datapoint["first"])
+                second = torch.tensor(datapoint["second"])
+
+                # Get label
+                label = datapoint["positive"]
+
+                # Output and loss
+                output = model(first, second)
+                loss = loss_fn(output, label)
+                loss.backward()
+                optimizer.step()
+
+                running_loss += loss.item()
+                input_len += 1
+        print(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
+
+        model.eval()
+        correct = 0
+        total = 0
+
+        with torch.no_grad():
+            with jsonlines.open(args.eval, 'r') as input:
+                for datapoint in input:
+                    # Get inputs
+                    first = torch.tensor(datapoint["first"])
+                    second = torch.tensor(datapoint["second"])
+                    
+                    # Get label
+                    label = datapoint["positive"]
+
+                    output = model(first, second)
+                    if abs(label - output) < 0.5:
+                        correct += 1
+                    total += 1
+        accuracy = correct / total
+        print(f"Accuracy: {accuracy:.2f}%")
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            torch.save(model.state_dict(), args.model_name)
+
+    print("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
+    with open(args.result, "w") as file:
+        file.write("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
+
