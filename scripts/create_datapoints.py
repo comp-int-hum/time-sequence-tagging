@@ -17,7 +17,6 @@ def split_chapter(encoded_chapter):
     second_half = []
     half = len(sent_embeddings) / 2
     for i, sent_embedding in enumerate(sent_embeddings):
-        sent_embedding = encoded_chapter["p" + str(i)]
         if i < half:
             first_half.append(sent_embedding)
         else:
