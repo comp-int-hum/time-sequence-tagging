@@ -67,7 +67,7 @@ env = Environment(
             action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
         ),
         "ShuffleData": Builder(
-            action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT}$"
+            action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT}"
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
@@ -76,7 +76,7 @@ env = Environment(
             action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES}"
         ),
         "TrainModel": Builder(
-            action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --embedding_dims ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
+            action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
         )
     }
 )
