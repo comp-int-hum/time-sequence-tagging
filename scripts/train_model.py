@@ -24,7 +24,6 @@ class BasicBinaryClassifier(nn.Module):
         x = self.fc3(x)
         x = self.sigmoid(x)
         return x
-        
 
 if __name__ == "__main__":
 
@@ -106,4 +105,3 @@ if __name__ == "__main__":
     print("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
     with open(args.result, "w") as file:
         file.write("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
-
