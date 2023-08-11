@@ -22,7 +22,10 @@ def split_chapter(encoded_chapter):
         else:
             second_half.append(sent_embedding)
 
-    return (first_half, second_half)
+    if first_half and second_half:
+        return (first_half, second_half)
+    else:
+        return None
 
 def get_first_half(encoded_chapter):
     return split_chapter(encoded_chapter)[0]
@@ -40,6 +43,10 @@ def create_datapoint(metadata, first, second):
     datapoint = metadata.copy()
     datapoint["first"] = average_embeddings(first)
     datapoint["second"] = average_embeddings(second)
+    # if not datapoint["first"] or not datapoint["second"]:
+    #     print(f"Datapoint: {datapoint}")
+    #     print(f"First: {first}")
+    #     print(f"Second: {second}")
     return datapoint
 
 # # Input: number of times to sample
@@ -76,7 +83,10 @@ if __name__ == "__main__":
 
             for cnum in sample_list:
                 first_ch = split_chapter(chapters[cnum])
-                positive_dp = create_datapoint(encoded_data, first=first_ch[1], second = get_first_half(chapters[cnum+1]))
+                second_ch = split_chapter(chapters[cnum+1])
+                if not first_ch or not second_ch:
+                    continue
+                positive_dp = create_datapoint(encoded_data, first=first_ch[1], second = second_ch[0])
                 negative_dp = create_datapoint(encoded_data, first=first_ch[0], second=first_ch[1])
                 assert("first" in positive_dp)
                 assert("first" in negative_dp)

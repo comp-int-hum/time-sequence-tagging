@@ -111,10 +111,16 @@ if __name__ == "__main__":
             encoded_data["edition"] = text["edition"]
             encoded_data["pub_info"] = text["pub_info"]
             chapters = OrderedDict()
+            valid_chapters = True
             for ch_name, ch_content in text["segments"].items():
+                if not ch_content:
+                    print("NO CONTENT FOUND")
+                    valid_chapters = False
+                    break
                 chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content)
             encoded_data["encoded_segments"] = chapters
-            writer.write(encoded_data)
+            if valid_chapters:
+                writer.write(encoded_data)
 
             
 

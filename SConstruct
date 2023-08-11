@@ -113,4 +113,4 @@ env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_e
 env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
 env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
 env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
-env.TrainModel(source = ["work/train_encoded.jsonl", "work/eval_encoded.jsonl"], target = "work/result.txt")
+env.TrainModel(source = ["work/train.jsonl", "work/eval.jsonl"], target = "work/result.txt")
