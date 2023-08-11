@@ -103,7 +103,7 @@ if __name__ == "__main__":
                     second = torch.tensor(datapoint["second"])
                     
                     # Get label
-                    label = datapoint["positive"]
+                    label = torch.tensor(float(datapoint["positive"])).to(device).unsqueeze(dim=0)
 
                     output = model(first, second)
                     if abs(label - output) < 0.5:
