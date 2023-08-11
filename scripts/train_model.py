@@ -3,11 +3,13 @@ import torch
 import jsonlines
 import torch.nn as nn
 import torch.optim as optim
+import json
 
 class BasicBinaryClassifier(nn.Module):
     def __init__(self, input_size):
         super().__init__()
-        self.fc1 = nn.Linear(input_size, 256)
+        print(f"Input size: {input_size}")
+        self.fc1 = nn.Linear(input_size * 2, 256)
         nn.init.kaiming_normal_(self.fc1.weight, mode="fan_in")
         self.fc2 = nn.Linear(256, 128)
         nn.init.kaiming_normal_(self.fc2.weight, mode="fan_in")
@@ -17,7 +19,10 @@ class BasicBinaryClassifier(nn.Module):
         self.relu = nn.ReLU()
         
     def forward(self, first, second):
-        x = torch.cat((first, second), dim = 1)
+        print(f"First: {first.shape}")
+        print(f"Second: {second.shape}")
+        x = torch.cat((first, second), dim = 0).to("cuda")
+        print(f"Cat {x.shape}")
         x = self.fc1(x)
         x = self.fc2(x)
         x = self.relu(x)
@@ -65,14 +70,18 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
 
                 # Get inputs
+                if not datapoint["first"] or not datapoint["second"]:
+                    print(f"Missing first or second: {json.dumps(datapoint)}")
                 first = torch.tensor(datapoint["first"]).to(device)
                 second = torch.tensor(datapoint["second"]).to(device)
 
                 # Get label
-                label = torch.tensor(datapoint["positive"]).to(device)
+                label = torch.tensor(float(datapoint["positive"])).to(device).unsqueeze(dim=0)
+                # print(f"Label: {label.shape}")
 
                 # Output and loss
                 output = model(first, second)
+                # print(f"Output: {output.shape}")
                 loss = loss_fn(output, label)
                 loss.backward()
                 optimizer.step()
@@ -89,6 +98,8 @@ if __name__ == "__main__":
             with jsonlines.open(args.eval, 'r') as input:
                 for datapoint in input:
                     # Get inputs
+                    if first not in datapoint:
+                        print(f"missing first: {datapoint}")
                     first = torch.tensor(datapoint["first"])
                     second = torch.tensor(datapoint["second"])
                     
