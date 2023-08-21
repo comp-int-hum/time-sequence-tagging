@@ -37,7 +37,7 @@ def get_batch(datapoints, batch_size = 16):
     curr_data_batch = []
     curr_label_batch = []
     for i, datapoint in enumerate(datapoints):
-        if datapoint["embeddings"]:
+        if not datapoint["embeddings"]:
             raise ValueError("missing embedding")
         curr_data_batch.append(datapoint["embeddings"])
         curr_label_batch.append(float(datapoint["positive"]))
