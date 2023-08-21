@@ -59,7 +59,7 @@ def evaluate(model, batches, device):
     total = 0
 
     with torch.no_grad():
-        for input, labels in batches:
+        for input, labels in zip(*batches):
             input.to(device)
             labels.to(device)
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
                 batches = get_batch(input)
             
             # Train
-            for input, label in batches:
+            for input, label in zip(*batches):
                 optimizer.zero_grad()
 
                 input.to(device)
