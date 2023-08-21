@@ -51,9 +51,9 @@ def get_batch(datapoints, batch_size = 16):
         data_batch.append(torch.tensor(curr_data_batch))
         label_batch.append(torch.tensor(curr_label_batch))
 
-    return data_batch, label_batch
+    return (data_batch, label_batch)
 
-def evaluate(model, batches):
+def evaluate(model, batches, device):
     model.eval()
     correct = 0
     total = 0
@@ -129,7 +129,7 @@ if __name__ == "__main__":
             file.write(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
 
             # Eval
-            accuracy = evaluate(model, batches)
+            accuracy = evaluate(model, batches, device)
             print(f"Accuracy: {accuracy:.2f}%")
             file.write(f"Accuracy: {accuracy:.2f}%")
             
