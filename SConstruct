@@ -28,7 +28,6 @@ vars.AddVariables(
     ("PG_DATAPATH", "", "/export/large_corpora/gutenberg/"),
     ("LOCAL_DATA_TAR", "", "./data/local.tar.gz"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
-    ("LOCAL_PG", "", "/export/large_corpora/gutenberg/2/7/0/2701/2701-h/2701-h.htm"),
     ("PG_CATALOG", "", "pg_catalog.csv"),
     ("SEGMENT_BY_CH", "", "chapter"),
     ("SEGMENT_BY_PG", "", "paragraph"),
@@ -41,7 +40,8 @@ vars.AddVariables(
     ("SAMPLES", "", 5),
     ("EMB_DIM", "", 768),
     ("SAVE_NAME", "", "work/best_model.pt"),
-    ("EPOCHS", "", 50)
+    ("EPOCHS", "", 50),
+    ("DIFF_CH", "", False)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -73,7 +73,7 @@ env = Environment(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
         ),
         "CreateDatapoints": Builder(
-            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES}"
+            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${DIFF_CH}"
         ),
         "TrainModel": Builder(
             action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
@@ -104,13 +104,19 @@ env = Environment(
 
 if env["LOCAL"] == "True":
     print("Is local")
-    env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+    data = env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
-    env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
-    print("is not local")
-env.ShuffleData(source = "work/gutenberg.jsonl", target = ["work/shuffled_gb_train.jsonl", "work/shuffled_gb_eval.jsonl"])
-env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_encoded.jsonl")
-env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
-env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
-env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
-env.TrainModel(source = ["work/train.jsonl", "work/eval.jsonl"], target = "work/result.txt")
+    data = env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+    print("Is not local")
+
+train, test = env.ShuffleData(source = data[0], target = ["work/shuffled_gb_train.jsonl", "work/shuffled_gb_test.jsonl"])
+train_enc = env.EncodeData(source = train, target = "work/train_encoded.jsonl")
+test_enc = env.EncodeData(source = test, target = "work/test_encoded.jsonl")
+train_data = env.CreateDatapoints(source = train_enc, target = "work/train.jsonl")
+test_data = env.CreateDatapoints(source = test_enc, target = "work/test.jsonl")
+result = env.TrainModel(source = [train_data, test_data], target = "work/result.txt")
+# env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_encoded.jsonl")
+# env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
+# env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
+# env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
+# env.TrainModel(source = ["work/train.jsonl", "work/eval.jsonl"], target = "work/result.txt")

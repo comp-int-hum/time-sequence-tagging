@@ -39,22 +39,50 @@ def average_embeddings(sent_embeddings):
 # input: chapter num and encoded_text
 
 # input: metadata is a dict
-def create_datapoint(metadata, first, second):
-    datapoint = metadata.copy()
-    datapoint["first"] = average_embeddings(first)
-    datapoint["second"] = average_embeddings(second)
-    # if not datapoint["first"] or not datapoint["second"]:
-    #     print(f"Datapoint: {datapoint}")
-    #     print(f"First: {first}")
-    #     print(f"Second: {second}")
-    return datapoint
+def create_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n):
+    prev = split_chapter(prev_ch)
+    next = split_chapter(next_ch)
+    if not prev or not next:
+        return None
+    
+    positive_dp = create_datapoint(metadata, prev[1], next[0], prev_ch_n, next_ch_n, True)
+    negative_dp = create_datapoint(metadata, next[0], next[1], next_ch_n, next_ch_n, True)
+    
+    if positive_dp and negative_dp:
+        return [positive_dp, negative_dp]
+    return None
 
+def create_datapoint(metadata, prev, next, prev_ch_n, next_ch_n, positive):
+    emb_prev = average_embeddings(prev)
+    emb_next = average_embeddings(next)
+
+    if emb_prev and emb_next:
+        dp = metadata.copy()
+        dp["embeddings"] = emb_prev.extend(emb_next)
+        dp["first_name"] = prev_ch_n
+        dp["second_name"] = next_ch_n
+        dp["positive"] = positive
+        return dp
+    
+    return None
+    
 # # Input: number of times to sample
 # # Output: samples
 # def sample_chapters(num_samples, encoded_text):
 #     num_chapters = len(encoded_text)
 #     random_samples = random.sample(range(0, num_chapters-1), num_samples)
 
+def get_metadata(text):
+    encoded_data = {}
+    encoded_data["title"] = text["title"]
+    encoded_data["author"] = text["author"]
+    encoded_data["edition"] = text["edition"]
+    encoded_data["pub_info"] = text["pub_info"]
+    return encoded_data
+
+def get_sample_list(text_len, samples):
+    num_samples = min(text_len-1, samples)
+    return random.sample(range(0, text_len-1), num_samples)
 
 if __name__ == "__main__":
 
@@ -62,47 +90,48 @@ if __name__ == "__main__":
     parser.add_argument("--input", dest="input", help="Encoded file")
     parser.add_argument("--output", dest="output", help="Name for datapoints file")
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
+    parser.add_argument("--same", action=argparse.BooleanOptionalAction)
     args, rest = parser.parse_known_args()
     
     with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
         # For line in jsonlines
-        data = []
+        data = [] # datapoints for current book
+        past_chapters = [] # chapters from prev book
+        past_names = []
         for idx, text in enumerate(input):
-            encoded_data = {}
-            encoded_data["title"] = text["title"]
-            encoded_data["author"] = text["author"]
-            encoded_data["edition"] = text["edition"]
-            encoded_data["pub_info"] = text["pub_info"]
+            metadata = get_metadata(text)
             
             chapters = list(text["encoded_segments"].values())
             chapter_names = list(text["encoded_segments"].values())
-            num_chapters = len(chapters)
-            num_samples = min(num_chapters-1, args.samples)
-            sample_list = random.sample(range(0, num_chapters-1), num_samples)
 
+            sample_list = get_sample_list(len(chapters), args.samples)
 
             for cnum in sample_list:
-                first_ch = split_chapter(chapters[cnum])
-                second_ch = split_chapter(chapters[cnum+1])
-                if not first_ch or not second_ch:
+
+                next_chapter = chapters[cnum+1]
+                next_ch_n = chapter_names[cnum+1]
+
+                if args.same:
+                    prev_chapter = chapters[cnum]
+                    prev_ch_n = chapter_names[cnum]
+
+                elif past_chapters:
+                    rand_past = random.randint(0, len(past_chapters)-1)
+                    prev_chapter = past_chapters[rand_past]
+                    prev_ch_n = past_names[rand_past]
+                else:
                     continue
-                positive_dp = create_datapoint(encoded_data, first=first_ch[1], second = second_ch[0])
-                negative_dp = create_datapoint(encoded_data, first=first_ch[0], second=first_ch[1])
-                assert("first" in positive_dp)
-                assert("first" in negative_dp)
-                positive_dp["first_name"] = chapter_names[cnum]
-                positive_dp["second_name"] = chapter_names[cnum+1]
-                negative_dp["first_name"] = chapter_names[cnum]
-                negative_dp["second_name"] = chapter_names[cnum]
-                positive_dp["positive"] = True
-                negative_dp["positive"] = False
-                data.append(positive_dp)
-                data.append(negative_dp)
+
+                dps = create_datapoint_pair(metadata, prev_chapter, next_chapter, prev_ch_n, next_ch_n)
+                if dps:
+                    data.extend(dps) # add to overall datapoints
+                
+            past_chapters = chapters
+            past_names = chapter_names
 
         random.shuffle(data)
 
         # Write resulting data
         for d in data:
-            assert("first" in d)
-            assert("second" in d)
+            assert("embeddings" in d)
             writer.write(d)
