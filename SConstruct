@@ -38,7 +38,7 @@ vars.AddVariables(
     ("DATA_SIZE", "Number of texts to grab chapters from", 625),
     ("TRAIN_TEST_SPLIT", "", 0.8),
     ("SAMPLES", "", 5),
-    ("EMB_DIM", "", 768),
+    ("EMB_DIM", "", 1536),
     ("SAVE_NAME", "", "work/best_model.pt"),
     ("EPOCHS", "", 50),
     ("DIFF_CH", "", False)
