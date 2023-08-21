@@ -64,7 +64,7 @@ def evaluate(model, batches, device):
             labels.to(device)
 
             # Output and loss
-            output = model(input)
+            output = model(input).squeeze(dim=1)
             correct += (torch.abs(labels - output) < 0.5).sum().item()
             total += labels.size(0)
     accuracy = correct / total
@@ -113,10 +113,13 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
 
                 input.to(device)
+                print(f"Input: {input.shape}")
                 label.to(device)
+                print(f"Label: {label.shape}")
 
                 # Output and loss
-                output = model(input)
+                output = model(input).squeeze(dim=1)
+                print(f"Output: {output.shape}")
 
                 loss = loss_fn(output, label)
                 loss.backward()
