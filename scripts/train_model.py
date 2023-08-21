@@ -48,8 +48,8 @@ def get_batch(datapoints, batch_size = 16, device="cuda"):
             curr_data_batch = []
             curr_label_batch = []
     if curr_data_batch:
-        data_batch.append(torch.tensor(curr_data_batch))
-        label_batch.append(torch.tensor(curr_label_batch))
+        data_batch.append(torch.tensor(curr_data_batch).to(device))
+        label_batch.append(torch.tensor(curr_label_batch).to(device))
 
     return (data_batch, label_batch)
 
