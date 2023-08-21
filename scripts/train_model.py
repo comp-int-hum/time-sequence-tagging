@@ -30,7 +30,7 @@ class BasicBinaryClassifier(nn.Module):
         x = self.sigmoid(x)
         return x
 
-def get_batch(datapoints, batch_size = 16):
+def get_batch(datapoints, batch_size = 16, device="cuda"):
     data_batch = []
     label_batch = []
 
@@ -43,8 +43,8 @@ def get_batch(datapoints, batch_size = 16):
         curr_label_batch.append(float(datapoint["positive"]))
         
         if len(curr_data_batch) == batch_size:
-            data_batch.append(torch.tensor(curr_data_batch))
-            label_batch.append(torch.tensor(curr_label_batch))
+            data_batch.append(torch.tensor(curr_data_batch).to(device))
+            label_batch.append(torch.tensor(curr_label_batch).to(device))
             curr_data_batch = []
             curr_label_batch = []
     if curr_data_batch:
