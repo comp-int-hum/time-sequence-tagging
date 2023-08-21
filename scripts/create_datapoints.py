@@ -46,7 +46,7 @@ def create_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n):
         return None
     
     positive_dp = create_datapoint(metadata, prev[1], next[0], prev_ch_n, next_ch_n, True)
-    negative_dp = create_datapoint(metadata, next[0], next[1], next_ch_n, next_ch_n, True)
+    negative_dp = create_datapoint(metadata, next[0], next[1], next_ch_n, next_ch_n, False)
     
     if positive_dp and negative_dp:
         return [positive_dp, negative_dp]
@@ -59,6 +59,7 @@ def create_datapoint(metadata, prev, next, prev_ch_n, next_ch_n, positive):
     if emb_prev and emb_next:
         dp = metadata.copy()
         dp["embeddings"] = emb_prev.extend(emb_next)
+        assert(dp["embeddings"])
         dp["first_name"] = prev_ch_n
         dp["second_name"] = next_ch_n
         dp["positive"] = positive
