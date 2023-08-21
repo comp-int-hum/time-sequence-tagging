@@ -40,11 +40,14 @@ def get_batch(datapoints, batch_size = 16):
         curr_data_batch.append(datapoint["embeddings"])
         curr_label_batch.append(float(datapoint["positive"]))
         
-        if len(curr_data_batch) == batch_size or i == len(datapoints) - 1:
+        if len(curr_data_batch) == batch_size:
             data_batch.append(torch.tensor(curr_data_batch))
             label_batch.append(torch.tensor(curr_label_batch))
             curr_data_batch = []
             curr_label_batch = []
+    if curr_data_batch:
+        data_batch.append(torch.tensor(curr_data_batch))
+        label_batch.append(torch.tensor(curr_label_batch))
 
     return data_batch, label_batch
 
