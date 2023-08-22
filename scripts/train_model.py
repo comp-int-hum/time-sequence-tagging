@@ -91,7 +91,7 @@ if __name__ == "__main__":
     model = BasicBinaryClassifier(input_size = args.emb_dim)
     model.to(device)
 
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.BCELoss()
 
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -133,8 +133,8 @@ if __name__ == "__main__":
 
             # Eval
             accuracy = evaluate(model, batches, device)
-            print(f"Accuracy: {accuracy:.2f}%")
-            file.write(f"Accuracy: {accuracy:.2f}%")
+            print(f"Accuracy: {accuracy:.2f}")
+            file.write(f"Accuracy: {accuracy:.2f}")
             
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
