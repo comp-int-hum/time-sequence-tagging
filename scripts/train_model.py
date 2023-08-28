@@ -64,7 +64,7 @@ def evaluate(model, batches, device):
             labels.to(device)
 
             # Output and loss
-            output = model(input)
+            output = model(input).squeeze(dim=1)
             correct += (torch.abs(labels - output) < 0.5).sum().item()
             total += labels.size(0)
     accuracy = correct / total
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     model = BasicBinaryClassifier(input_size = args.emb_dim)
     model.to(device)
 
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.BCELoss()
 
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -113,10 +113,13 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
 
                 input.to(device)
+                print(f"Input: {input.shape}")
                 label.to(device)
+                print(f"Label: {label.shape}")
 
                 # Output and loss
-                output = model(input)
+                output = model(input).squeeze(dim=1)
+                print(f"Output: {output.shape}")
 
                 loss = loss_fn(output, label)
                 loss.backward()
@@ -130,8 +133,8 @@ if __name__ == "__main__":
 
             # Eval
             accuracy = evaluate(model, batches, device)
-            print(f"Accuracy: {accuracy:.2f}%")
-            file.write(f"Accuracy: {accuracy:.2f}%")
+            print(f"Accuracy: {accuracy:.2f}")
+            file.write(f"Accuracy: {accuracy:.2f}")
             
             if accuracy > best_accuracy:
                 best_accuracy = accuracy

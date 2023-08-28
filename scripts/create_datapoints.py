@@ -58,7 +58,8 @@ def create_datapoint(metadata, prev, next, prev_ch_n, next_ch_n, positive):
 
     if emb_prev and emb_next:
         dp = metadata.copy()
-        dp["embeddings"] = emb_prev.extend(emb_next)
+        emb_prev.extend(emb_next)
+        dp["embeddings"] = emb_prev
         assert(dp["embeddings"])
         dp["first_name"] = prev_ch_n
         dp["second_name"] = next_ch_n
