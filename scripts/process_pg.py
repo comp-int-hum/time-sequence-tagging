@@ -186,6 +186,22 @@ def get_volumes(soup):
     except:
         return volumes
     return volumes
+
+def process_volumes(file_path, metadata):
+    if not os.path.isfile(file_path):
+        return None
+    print(f"File Path: {file_path}")
+    with open(file_path, 'r') as file:
+        soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
+        volumes = get_volumes(soup)
+        for header, chapters in volumes.items():
+            result = metadata.copy()
+            if header.strip():
+                result["title"] += " -- " + header
+            result["segments"] = chapters
+            if result["segments"]:
+                return result
+    return None
     
 
 ## ______________ MAIN ____________________________________
@@ -207,52 +223,26 @@ if __name__ == "__main__":
         files = os.listdir(args.base_dir)
         for filename in files:
             file_path = os.path.join(args.base_dir, filename)
-            if os.path.isfile(file_path):
-                print(f"File Path: {file_path}")
-                with open(file_path, 'r') as file:
-                    soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
-                    volumes = get_volumes(soup)
-                    # print(volumes.items())
-                    print(volumes.keys())
-                    metadata = {"title": str(file), "author": "author", "edition": None, "pub_info": None}
-                    for header, chapters in volumes.items():
-                        result = metadata.copy()
-                        if header.strip():
-                            result["title"] += " -- " + header
-                        result["segments"] = chapters
-                        if result["segments"]:
-                            data.append(result)
+            metadata = {"title": str(file_path), "author": "author", "edition": None, "pub_info": None}
+            result = process_volumes(file_path, metadata)
+            if result:
+                data.append(result)
     else:
         print("IS NOT LOCAL")
         with open(args.input) as catalog:
             csv_reader = csv.DictReader(catalog)
             potential_docs = 0
             for i, row in enumerate(csv_reader):
-                # For local testing
-                # if i > 100:
-                #     break
-
-                # if i != x:
-                #   continue
-                
                 locc = row["LoCC"].split(";") if row["LoCC"] else None
                 is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
                 if is_lang_lit and row["Title"].strip():
                     text_num = row["Text#"]
                     file_path = get_gb_html_dir(args.base_dir, text_num)
                     print(f"File Path: {file_path}")
-                    if os.path.isfile(file_path):
-                        with open(file_path, "rb") as fpointer:
-                            soup = BeautifulSoup(fpointer, "html.parser", from_encoding='UTF-8')
-                            metadata = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
-                            volumes = get_volumes(soup)
-                            for header, chapters in volumes.items():
-                                result = metadata.copy()
-                                if header.strip():
-                                    result["title"] += " -- " + header
-                                result["segments"] = chapters
-                                if result["segments"]:
-                                    data.append(result)
+                    metadata = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
+                    result = process_volumes(file_path, metadata)
+                    if result:
+                        data.append(result)
     for d in data:
         assert(d != {})
 
