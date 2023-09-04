@@ -39,9 +39,9 @@ vars.AddVariables(
     ("TRAIN_TEST_SPLIT", "", 0.8),
     ("SAMPLES", "", 5),
     ("EMB_DIM", "", 1536),
-    ("SAVE_NAME", "", "work/best_model.pt"),
     ("EPOCHS", "", 50),
     ("DIFF_CH", "", True)
+    ("CH_EMBED_TYPE", ["only_fl", "no_fl", "inc_fl"])
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -64,7 +64,7 @@ env = Environment(
         ),
         "ProcessPG" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
+            action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local ${LOCAL}",
         ),
         "ShuffleData": Builder(
             action="python scripts/shuffle_data.py --input ${SOURCES} --output ${TARGETS} --data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT}"
@@ -73,31 +73,13 @@ env = Environment(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
         ),
         "CreateDatapoints": Builder(
-            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${DIFF_CH}"
+            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${DIFF_CH} --fl ${FL}"
         ),
         "TrainModel": Builder(
             action="python scripts/train_model.py --train ${SOURCES[0]} --eval ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
         )
     }
 )
-
-# OK, at this point we have defined all the builders and variables, so it's
-# time to specify the actual experimental process, which will involve
-# running all combinations of datasets, folds, model types, and parameter values,
-# collecting the build artifacts from applying the models to test data in a list.
-#
-# The basic pattern for invoking a build rule is:
-#
-#   "Rule(list_of_targets, list_of_sources, VARIABLE1=value, VARIABLE2=value...)"
-#
-# Note how variables are specified in each invocation, and their values used to fill
-# in the build commands *and* determine output filenames.  It's a very flexible system,
-# and there are ways to make it less verbose, but in this case explicit is better than
-# implicit.
-#
-# Note also how the outputs ("targets") from earlier invocation are used as the inputs
-# ("sources") to later ones, and how some outputs are also gathered into the "results"
-# variable, so they can be summarized together after each experiment runs.
 
 
 # TODO: Fix this. It's horrific. I'm sorry.
@@ -112,11 +94,8 @@ else:
 train, test = env.ShuffleData(source = data[0], target = ["work/shuffled_gb_train.jsonl", "work/shuffled_gb_test.jsonl"])
 train_enc = env.EncodeData(source = train, target = "work/train_encoded.jsonl")
 test_enc = env.EncodeData(source = test, target = "work/test_encoded.jsonl")
-train_data = env.CreateDatapoints(source = train_enc, target = "work/train.jsonl")
-test_data = env.CreateDatapoints(source = test_enc, target = "work/test.jsonl")
-result = env.TrainModel(source = [train_data, test_data], target = "work/result.txt")
-# env.EncodeData(source = ["work/shuffled_gb_train.jsonl"], target = "work/train_encoded.jsonl")
-# env.EncodeData(source = ["work/shuffled_gb_eval.jsonl"], target = "work/eval_encoded.jsonl")
-# env.CreateDatapoints(source = "work/train_encoded.jsonl", target = "work/train.jsonl")
-# env.CreateDatapoints(source = "work/eval_encoded.jsonl", target = "work/eval.jsonl")
-# env.TrainModel(source = ["work/train.jsonl", "work/eval.jsonl"], target = "work/result.txt")
+
+for fl_type in env["CH_EMBED_TYPE"]:
+    train_data = env.CreateDatapoints(source = train_enc, target = "work/train.jsonl", FL=fl_type)
+    test_data = env.CreateDatapoints(source = test_enc, target = "work/test.jsonl", FL=fl_type)
+    result = env.TrainModel(source = [train_data, test_data], target = f"work/result/{fl_type}.txt", SAVE_NAME=f"work/best_model/{fl_type}.pt")
