@@ -4,6 +4,7 @@ import jsonlines
 import torch.nn as nn
 import torch.optim as optim
 import json
+import os
 
 class BasicBinaryClassifier(nn.Module):
     def __init__(self, input_size):
@@ -85,6 +86,8 @@ if __name__ == "__main__":
     print(f"Is training")
 
     torch.cuda.empty_cache()
+
+    os.makedirs(os.path.dirname(args.model_name), exist_ok=True)
 
     device = "cuda"
 
