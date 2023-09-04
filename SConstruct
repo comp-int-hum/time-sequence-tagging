@@ -40,8 +40,8 @@ vars.AddVariables(
     ("SAMPLES", "", 5),
     ("EMB_DIM", "", 1536),
     ("EPOCHS", "", 50),
-    ("DIFF_CH", "", True)
-    ("CH_EMBED_TYPE", ["only_fl", "no_fl", "inc_fl"])
+    ("DIFF_CH", "", True),
+    ("CH_EMBED_TYPE", "", ["only_fl", "no_fl", "inc_fl"])
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
