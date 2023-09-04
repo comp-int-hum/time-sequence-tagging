@@ -96,6 +96,6 @@ train_enc = env.EncodeData(source = train, target = "work/train_encoded.jsonl")
 test_enc = env.EncodeData(source = test, target = "work/test_encoded.jsonl")
 
 for fl_type in env["CH_EMBED_TYPE"]:
-    train_data = env.CreateDatapoints(source = train_enc, target = "work/train.jsonl", FL=fl_type)
-    test_data = env.CreateDatapoints(source = test_enc, target = "work/test.jsonl", FL=fl_type)
+    train_data = env.CreateDatapoints(source = train_enc, target = f"work/train-{fl_type}.jsonl", FL=fl_type)
+    test_data = env.CreateDatapoints(source = test_enc, target = f"work/test.jsonl-{fl_type}", FL=fl_type)
     result = env.TrainModel(source = [train_data, test_data], target = f"work/result/{fl_type}.txt", SAVE_NAME=f"work/best_model/{fl_type}.pt")
