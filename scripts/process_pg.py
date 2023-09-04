@@ -191,7 +191,7 @@ def process_volumes(file_path, metadata):
     if not os.path.isfile(file_path):
         return None
     print(f"File Path: {file_path}")
-    with open(file_path, 'r') as file:
+    with open(file_path, 'rb') as file:
         soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
         volumes = get_volumes(soup)
         for header, chapters in volumes.items():

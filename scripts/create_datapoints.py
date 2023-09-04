@@ -94,6 +94,8 @@ if __name__ == "__main__":
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
     parser.add_argument("--same", action=argparse.BooleanOptionalAction)
     args, rest = parser.parse_known_args()
+
+    print(f"Same: {args.same}")
     
     with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
         # For line in jsonlines

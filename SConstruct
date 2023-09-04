@@ -41,7 +41,7 @@ vars.AddVariables(
     ("EMB_DIM", "", 1536),
     ("SAVE_NAME", "", "work/best_model.pt"),
     ("EPOCHS", "", 50),
-    ("DIFF_CH", "", False)
+    ("DIFF_CH", "", True)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
