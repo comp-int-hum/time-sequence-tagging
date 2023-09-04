@@ -16,7 +16,7 @@ def can_split_last(first_half, second_half):
         return False
     return True
 
-def split_chapter(encoded_chapter, last):
+def split_chapter(encoded_chapter, fl):
     sent_embeddings = get_embeddings_for_chapter(encoded_chapter)
     first_half = [] # list of sentence embeddings (also a list)
     second_half = []
@@ -28,11 +28,11 @@ def split_chapter(encoded_chapter, last):
             second_half.append(sent_embedding)
     
     if first_half and second_half:
-        if last == "include_fl":
+        if fl == "inc_fl":
             return (first_half, second_half)
-        elif last == "no_fl" and can_split_last(first_half, second_half):
+        elif fl == "no_fl" and can_split_last(first_half, second_half):
             return (first_half[:-1], second_half[1:])
-        elif last == "only_fl" and can_split_last(first_half, second_half):
+        elif fl == "only_fl" and can_split_last(first_half, second_half):
             return (first_half[-1:], second_half[:1])
     
     return None
@@ -49,9 +49,9 @@ def average_embeddings(sent_embeddings):
 # input: chapter num and encoded_text
 
 # input: metadata is a dict
-def create_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n, last):
-    prev = split_chapter(prev_ch, last)
-    next = split_chapter(next_ch, last)
+def create_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n, fl):
+    prev = split_chapter(prev_ch, fl)
+    next = split_chapter(next_ch, fl)
     print(f"Prev: {prev}")
     print(f"Next: {next}")
     if not prev or not next:
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", dest="output", help="Name for datapoints file")
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
     parser.add_argument("--same", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--ignore_last", dest="last", help="Whether to include last sentence; choices: no_fl, only_fl, inc_fl") # fl stands for first last
+    parser.add_argument("--fl", dest="fl", help="Whether to include last sentence; choices: no_fl, only_fl, inc_fl") # fl stands for first last
     args, rest = parser.parse_known_args()
 
     print(f"Same: {args.same}")
@@ -139,7 +139,7 @@ if __name__ == "__main__":
                 else:
                     continue
 
-                dps = create_datapoint_pair(metadata, prev_chapter, next_chapter, prev_ch_n, next_ch_n, args.last)
+                dps = create_datapoint_pair(metadata, prev_chapter, next_chapter, prev_ch_n, next_ch_n, args.fl)
                 if dps:
                     data.extend(dps) # add to overall datapoints
                 
