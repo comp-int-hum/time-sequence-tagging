@@ -100,16 +100,20 @@ if __name__ == "__main__":
 
     num_epochs = args.epochs
     best_accuracy = 0
+
+    # Get batches
+    with jsonlines.open(args.train, 'r') as input:
+        train_batches = get_batch(input)
+
+    with jsonlines.open(args.eval, 'r') as eval:
+        eval_batches = get_batch(eval)
+
     with open(args.result, "w") as file:
         for epoch in range(num_epochs):
             model.train()
             running_loss = 0.0
 
             input_len = 0
-
-            # Get batches
-            with jsonlines.open(args.train, 'r') as input:
-                train_batches = get_batch(input)
             
             # Train
             for input, label in zip(*train_batches):
@@ -133,10 +137,6 @@ if __name__ == "__main__":
             
             print(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
             file.write(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
-
-            eval_batches = []
-            with jsonlines.open(args.eval, 'r') as eval:
-                eval_batches = get_batch(eval)
                 
             # Eval
             accuracy = evaluate(model, eval_batches, device)
