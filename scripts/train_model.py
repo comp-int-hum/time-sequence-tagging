@@ -134,6 +134,7 @@ if __name__ == "__main__":
             print(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
             file.write(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
 
+            eval_batches = []
             with jsonlines.open(args.eval, 'r') as eval:
                 eval_batches = get_batch(eval)
                 
