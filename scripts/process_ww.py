@@ -1,8 +1,8 @@
 from bs4 import BeautifulSoup
 import argparse
 import tarfile
-import json
 import re
+import jsonlines
 # import xml.etree.ElementTree as ET
 
 def get_form(soup):
@@ -25,10 +25,8 @@ def get_form(soup):
                 
     return form
         
-    
 
 def get_metadata(soup):
-
     data = {} 
     data["title"] = soup.title.string
     data["author"] = soup.author.persName.string if soup.author else None
@@ -43,10 +41,6 @@ def get_metadata(soup):
         data["pub_info"] = pub_info
     data["form"] = get_form(soup)
     return data
-
-
-
-
 
 def segment_paragraphs(soup):
 
@@ -95,7 +89,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", dest="output", help="Output files")
     parser.add_argument("--data_path", dest="data_path", nargs="+", help="path to data files")
-    parser.add_argument("--granularity", dest="granularity", choices=["chapter", "paragraph"], help="chapter or paragraph")
+    # parser.add_argument("--granularity", dest="granularity", choices=["chapter", "paragraph"], help="chapter or paragraph")
     args, rest = parser.parse_known_args()
 
     result = []
@@ -110,12 +104,8 @@ if __name__ == "__main__":
                     print(f"Name: {member.name}, form: {get_form(soup)}")
                     data = get_metadata(soup)
                     if data["form"] == "chapter": # non-ideal hard coding
-                        if args.granularity == "paragraph":
-                           data["segments"] = segment_paragraphs(soup)
-                        else:
-                           data["segments"] = segment_chapters(soup)
+                        data["segments"] = segment_chapters(soup)
                         result.append(data)
-
     else:
         print("Using regular files")
         print(args.data_path)
@@ -127,8 +117,11 @@ if __name__ == "__main__":
 
     print(f"RESULT LENGTH: {len(result)}")
     
-    with open(args.output, "w") as output:
-        json.dump(result, output)
+    with jsonlines.open(args.output, "w") as writer:
+        writer.write_all(result)
+
+    # with open(args.output, "w") as output:
+    #     json.dump(result, output)
 
     
     # text_content = soup.get_text()
