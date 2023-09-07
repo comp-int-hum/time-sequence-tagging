@@ -31,26 +31,28 @@ class BasicBinaryClassifier(nn.Module):
         x = self.sigmoid(x)
         return x
 
-def get_batch(datapoints, batch_size = 16, device="cuda"):
+def get_batch(filepath, batch_size = 16, device="cuda"):
     data_batch = []
     label_batch = []
 
     curr_data_batch = []
     curr_label_batch = []
-    for i, datapoint in enumerate(datapoints):
-        if not datapoint["embeddings"]:
-            raise ValueError("missing embedding")
-        curr_data_batch.append(datapoint["embeddings"])
-        curr_label_batch.append(float(datapoint["positive"]))
-        
-        if len(curr_data_batch) == batch_size:
+
+    with jsonlines.open(filepath, 'r') as datapoints:
+        for datapoint in datapoints:
+            if not datapoint["embeddings"]:
+                raise ValueError("missing embedding")
+            curr_data_batch.append(datapoint["embeddings"])
+            curr_label_batch.append(float(datapoint["positive"]))
+            
+            if len(curr_data_batch) == batch_size:
+                data_batch.append(torch.tensor(curr_data_batch).to(device))
+                label_batch.append(torch.tensor(curr_label_batch).to(device))
+                curr_data_batch = []
+                curr_label_batch = []
+        if curr_data_batch:
             data_batch.append(torch.tensor(curr_data_batch).to(device))
             label_batch.append(torch.tensor(curr_label_batch).to(device))
-            curr_data_batch = []
-            curr_label_batch = []
-    if curr_data_batch:
-        data_batch.append(torch.tensor(curr_data_batch).to(device))
-        label_batch.append(torch.tensor(curr_label_batch).to(device))
 
     return (data_batch, label_batch)
 
@@ -61,8 +63,8 @@ def evaluate(model, batches, device):
 
     with torch.no_grad():
         for input, labels in zip(*batches):
-            input.to(device)
-            labels.to(device)
+            input = input.to(device)
+            labels = labels.to(device)
 
             # Output and loss
             output = model(input).squeeze(dim=1)
@@ -75,7 +77,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", dest="train", help="name of training datapoints file")
-    parser.add_argument("--eval", dest="eval", help="name of test datapoints file")
+    parser.add_argument("--test", dest="test", help="name of test datapoints file")
     parser.add_argument("--model_name", dest="model_name", help="Name of best model")
     parser.add_argument("--emb_dim", dest="emb_dim", type = int, help="size of sentence embedding")
     parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
@@ -102,11 +104,8 @@ if __name__ == "__main__":
     best_accuracy = 0
 
     # Get batches
-    with jsonlines.open(args.train, 'r') as input:
-        train_batches = get_batch(input)
-
-    with jsonlines.open(args.eval, 'r') as eval:
-        eval_batches = get_batch(eval)
+    train_batches = get_batch(args.train)
+    test_batches = get_batch(args.test)
 
     with open(args.result, "w") as file:
         for epoch in range(num_epochs):
@@ -119,9 +118,12 @@ if __name__ == "__main__":
             for input, label in zip(*train_batches):
                 optimizer.zero_grad()
 
-                input.to(device)
+
+
+
+                input = input.to(device)
                 print(f"Input: {input.shape}")
-                label.to(device)
+                label = label.to(device)
                 print(f"Label: {label.shape}")
 
                 # Output and loss
@@ -139,7 +141,7 @@ if __name__ == "__main__":
             file.write(f"Epoch: {epoch}, Loss: {running_loss / input_len}")
                 
             # Eval
-            accuracy = evaluate(model, eval_batches, device)
+            accuracy = evaluate(model, test_batches, device)
             print(f"Accuracy: {accuracy:.2f}")
             file.write(f"Accuracy: {accuracy:.2f}")
             

@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument("--input", dest="input", help="Encoded file")
     parser.add_argument("--output", dest="output", help="Name for datapoints file")
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
-    parser.add_argument("--same", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--same", dest="same", help="True if chapter examples are from same text")
     parser.add_argument("--fl", dest="fl", help="Whether to include last sentence; choices: no_fl, only_fl, inc_fl") # fl stands for first last
     args, rest = parser.parse_known_args()
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
                 next_chapter = chapters[cnum+1]
                 next_ch_n = chapter_names[cnum+1]
 
-                if args.same:
+                if args.same == "True":
                     prev_chapter = chapters[cnum]
                     prev_ch_n = chapter_names[cnum]
 
