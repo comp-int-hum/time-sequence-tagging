@@ -51,8 +51,5 @@ if __name__ == "__main__":
         tr_size = int(args.ratio * data_size)
         write_data(args.output[0], train_data, end=tr_size)
         write_data(args.output[1], train_data, tr_size + 1, data_size)
-
-    print(f"Training size: {tr_size}")
-    print(f"Eval size: {ev_size}")
         
             
