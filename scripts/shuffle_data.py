@@ -38,7 +38,7 @@ if __name__ == "__main__":
     
 
     print(f"Shuffling data")
-    train_data = read_shuffle_jsonl_file(args.input)
+    train_data = read_shuffle_jsonl_file(args.inputs)
     
     if os.path.isfile(args.cd):
         test_data = read_shuffle_jsonl_file(args.cd)
