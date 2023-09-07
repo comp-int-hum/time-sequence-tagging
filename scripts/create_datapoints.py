@@ -52,8 +52,6 @@ def average_embeddings(sent_embeddings):
 def create_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n, fl):
     prev = split_chapter(prev_ch, fl)
     next = split_chapter(next_ch, fl)
-    print(f"Prev: {prev}")
-    print(f"Next: {next}")
     if not prev or not next:
         return None
     
