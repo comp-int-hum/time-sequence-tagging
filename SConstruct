@@ -38,7 +38,7 @@ vars.AddVariables(
     ("EPOCHS", "", 50),
     ("SAME_CH", "", "True"),
     ("CH_EMBED_TYPE", "", ["only_fl", "no_fl", "inc_fl"]),
-    ("CROSS_DOMAIN", "", "cd"), # cd or no_cd
+    ("CD", "", "cd"), # Cross_domain: cd or no_cd
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -67,7 +67,7 @@ env = Environment(
             action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",
         ),
         "ShuffleData": Builder(
-            action="python scripts/shuffle_data.py --inputs ${SOURCES} --output ${TARGETS} --max_data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT} --cd ${CD}"
+            action="python scripts/shuffle_data.py --inputs ${SOURCES} --output ${TARGETS} --max_data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT} --cd ${CROSS_DOMAIN}"
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
@@ -82,9 +82,7 @@ env = Environment(
 )
 
 
-# TODO: Fix this. It's horrific. I'm sorry.
-
-if env["LOCAL"] == "True":
+if env["LOCAL"] == "cd":
     print("Is local")
     data = env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
@@ -92,19 +90,19 @@ else:
     pg_data = env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
     ww_data = env.ProcessWW(source = env["WW_DATAPATH"], target = ["work/womenwriters.jsonl"])
 
-if env["CROSS_DOMAIN"] == "True":
-   train, test = env.ShuffleData(source = [pg_data], target = ["work/shuffled_pg_ww_train.jsonl", "work/shuffled_pg_ww_test.jsonl"], CD = ww_data)
-   # train_encode_target = "work/cd/train_encoded.jsonl"
-   # test_encode_target = "work/cd/test_encoded.jsonl"
+if env["CD"] == "cd":
+   print(f"Cross domain data shuffle")
+   train, test = env.ShuffleData(source = [pg_data], target = [f"work/{env['CD']}/shuffled_train.jsonl", f"work/{env['CD']}/shuffled_test.jsonl"], CROSS_DOMAIN = ww_data)
 else:
-   train, test = env.ShuffleData(source = [pg_data], target = ["work/shuffled_gb_train.jsonl", "work/shuffled_gb_test.jsonl"])
-   # train_encode_target = "work/no_cd/train_encoded.jsonl"
-   # test_encode_target = "work/no_cd/test_encoded.jsonl"
-# train_enc = env.EncodeData(source = train, target = train_encode_target)
-# test_enc = env.EncodeData(source = test, target = test_encode_target)
+   print(f"Within domain data shuffle")
+   train, test = env.ShuffleData(source = [pg_data], target = [f"work/{env['CD']}/shuffled_train.jsonl", f"work/{env['CD']}/shuffled_test.jsonl"])
+
+# Encode Step
+train_enc = env.EncodeData(source = train, target = f"work/{env['CD']}/train_encoded.jsonl")
+test_enc = env.EncodeData(source = test, target = f"work/{env['CD']}/test_encoded.jsonl")
 
 for fl_type in env["CH_EMBED_TYPE"]:
-    train_data = env.CreateDatapoints(source = train_enc, target = f"work/train-{fl_type}.jsonl", FL=fl_type)
-    test_data = env.CreateDatapoints(source = test_enc, target = f"work/test-{fl_type}.jsonl", FL=fl_type)
-    result_file_name = f"work/result/{fl_type}.txt" if 
-    result = env.TrainModel(source = [train_data, test_data], target = f"work/result/{fl_type}.txt", SAVE_NAME=f"work/best_model/{fl_type}.pt")
+    print(f"Fl type: {fl_type}")
+    train_data = env.CreateDatapoints(source = train_enc, target = f"work/{env['CD']}/train-{fl_type}.jsonl", FL=fl_type)
+    test_data = env.CreateDatapoints(source = test_enc, target = f"work/{env['CD']}/test-{fl_type}.jsonl", FL=fl_type)
+    result = env.TrainModel(source = [train_data, test_data], target = f"work/result/{env['CD']}/{fl_type}.txt", SAVE_NAME=f"work/best_model/{env['CD']}/{fl_type}.pt")
