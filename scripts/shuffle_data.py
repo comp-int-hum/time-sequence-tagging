@@ -41,12 +41,14 @@ if __name__ == "__main__":
     train_data = read_shuffle_jsonl_file(args.inputs)
     
     if os.path.isfile(args.cd):
+        print(f"File path found {args.cd}")
         test_data = read_shuffle_jsonl_file(args.cd)
         tr_size = int(min(args.ratio * args.max_data_size, len(train_data)))
         ev_size = int(min((1-args.ratio) * args.max_data_size, len(test_data)))
         write_data(args.output[0], train_data, end=tr_size)
         write_data(args.output[1], test_data, end=ev_size)
     else:
+        print(f"No file path found, using train data")
         data_size = min(args.max_data_size, len(train_data))
         tr_size = int(args.ratio * data_size)
         write_data(args.output[0], train_data, end=tr_size)
