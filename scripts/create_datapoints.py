@@ -2,6 +2,8 @@ import jsonlines
 from collections import OrderedDict
 import argparse
 import random
+from utility import make_dirs
+
 # # Input: encoded segments grouped by paragraphs
 # # Output: list of encoded segments grouped by chapter
 def get_embeddings_for_chapter(encoded_chapter):
@@ -92,7 +94,8 @@ def get_metadata(text):
     encoded_data["pub_info"] = text["pub_info"]
     return encoded_data
 
-def get_sample_list(text_len, samples):
+def get_sample_list(text_len, samples, seed):
+    random.seed(seed)
     num_samples = min(text_len-1, samples)
     return random.sample(range(0, text_len-1), num_samples)
 
@@ -104,9 +107,12 @@ if __name__ == "__main__":
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
     parser.add_argument("--same", dest="same", help="True if chapter examples are from same text")
     parser.add_argument("--fl", dest="fl", help="Whether to include last sentence; choices: no_fl, only_fl, inc_fl") # fl stands for first last
+    parser.add_argument("--seed", dest="seed", type=int)
     args, rest = parser.parse_known_args()
 
     print(f"Same: {args.same}")
+
+    make_dirs(args.output)
     
     with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
         # For line in jsonlines
@@ -119,7 +125,7 @@ if __name__ == "__main__":
             chapters = list(text["encoded_segments"].values())
             chapter_names = list(text["encoded_segments"].values())
 
-            sample_list = get_sample_list(len(chapters), args.samples)
+            sample_list = get_sample_list(len(chapters), args.samples, args.seed)
 
             for cnum in sample_list:
 

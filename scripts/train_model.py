@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import json
 import os
+from utility import make_dirs
 
 class BasicBinaryClassifier(nn.Module):
     def __init__(self, input_size):
@@ -83,7 +84,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
     parser.add_argument("--result", dest="result", help="Name of result file")
     parser.add_argument("--batch", dest="batch", type = int, help="Batch size")
+    parser.add_argument("--cum", dest="cum", help="Name for cumulative file")
     args, rest = parser.parse_known_args()
+
+    make_dirs(args.model_name)
+    make_dirs(args.result)
 
     print(f"Is training")
 
@@ -117,10 +122,6 @@ if __name__ == "__main__":
             # Train
             for input, label in zip(*train_batches):
                 optimizer.zero_grad()
-
-
-
-
                 input = input.to(device)
                 print(f"Input: {input.shape}")
                 label = label.to(device)
@@ -151,3 +152,5 @@ if __name__ == "__main__":
 
         print("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
         file.write("\nBest Performing Model achieves dev pearsonr of : %.3f" % (best_accuracy))
+    with open(args.cum, "a") as cumulative:
+        cumulative.write(f"{best_accuracy}\n")

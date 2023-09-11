@@ -7,6 +7,7 @@ import h5py
 import jsonlines
 import torch
 from collections import OrderedDict
+from utility import make_dirs
 
 # Input: chapter_dict representing one chapter: key=paragraph_num, value = string paragraph_content
 # Output: list of all sentences in the chapter
@@ -93,6 +94,8 @@ if __name__ == "__main__":
     #     device = "cpu"
 
     # print(f"Device: {device}")
+
+    make_dirs(args.output)
 
     torch.cuda.empty_cache()
 

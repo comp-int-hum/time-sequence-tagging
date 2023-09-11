@@ -7,6 +7,7 @@ import os
 import csv
 import jsonlines
 import json
+from utility import make_dirs
 
 potential_docs = 0
 ## ______________ HELPER FUNCTIONS ______________________
@@ -217,6 +218,9 @@ if __name__ == "__main__":
     print(f"Outputs: {args.outputs}")
     print(f"Input: {args.input}")
 
+    for output in args.outputs:
+        make_dirs(output)
+
     data = []
     if args.local == "True":
         print("IS LOCAL")
@@ -251,8 +255,9 @@ if __name__ == "__main__":
     with jsonlines.open(args.outputs[0], "w") as writer:
         writer.write_all(data)
 
-    with open(args.outputs[1], "w") as output:
-        json.dump(data, output)
+    if len(args.outputs) == 2:
+        with open(args.outputs[1], "w") as output:
+            json.dump(data, output)
 
 
 # if __name__ == "__main__":

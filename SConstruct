@@ -28,17 +28,22 @@ vars.AddVariables(
     ("PG_DATAPATH", "", "/export/large_corpora/gutenberg/"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("PG_CATALOG", "", "pg_catalog.csv"),
-    ("MODEL_NAME", "", "bert-base-uncased"),
+    ("ENC_MODEL_NAME", "", "bert-base-uncased"),
     ("MAX_TOKS", "", 512),
     ("LOCAL", "", "False"),
-    ("DATA_SIZE", "Number of texts to grab chapters from", 625),
+    ("DATA_SIZE", "Number of texts to encode", 3000),
+    ("SAMPLE_SIZE", "Number of texts to grab chapters from", 625)
     ("TRAIN_TEST_SPLIT", "", 0.8),
     ("SAMPLES", "Number of chapters to sample from text", 5),
     ("EMB_DIM", "Size of BERT embedding", 1536),
     ("EPOCHS", "", 50),
     ("SAME_CH", "", "True"),
-    ("CH_EMBED_TYPE", "", ["only_fl", "no_fl", "inc_fl"]),
+    ("CH_EMBED_TYPE", "", ["inc_fl", "only_fl", "no_fl"]),
     ("CD", "", "cd"), # Cross_domain: cd or no_cd
+    ("NUM_TRIALS", "", 20),
+    ("MODEL_EVAL", "", "True"),
+    ("SAMPLE_SEED", "", 1),
+    ("DPS_SEED", "", 1)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -66,43 +71,67 @@ env = Environment(
         "ProcessWW" : Builder(
             action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",
         ),
-        "ShuffleData": Builder(
-            action="python scripts/shuffle_data.py --inputs ${SOURCES} --output ${TARGETS} --max_data_size ${DATA_SIZE} --split_ratio ${TRAIN_TEST_SPLIT} --cd ${CROSS_DOMAIN}"
+        "CreateSample": Builder (
+            action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --data_size ${DATA_SIZE} --seed {SAMPLE_SEED}"
         ),
         "EncodeData": Builder(
-            action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
+            action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${ENC_MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
+        ),
+        "ShuffleData": Builder(
+            action="python scripts/shuffle_data.py --inputs ${SOURCES} --output ${TARGETS} --sample_size ${SAMPLE_SIZE} --split_ratio ${TRAIN_TEST_SPLIT} --cd ${CROSS_DOMAIN} --seed ${SHUFFLE_SEED}"
         ),
         "CreateDatapoints": Builder(
-            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${SAME_CH} --fl ${FL}"
+            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${SAME_CH} --fl ${FL} --seed ${DPS_SEED}"
         ),
         "TrainModel": Builder(
-            action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS}"
+            action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS} --cum ${CUM}"
         )
     }
 )
 
-
-if env["LOCAL"] == "cd":
-    print("Is local")
-    data = env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+# Get data
+if env["LOCAL"] == "True":
+    print("Debugging run")
+    pg_local = env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
-    print("Is not local")
-    pg_data = env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
-    ww_data = env.ProcessWW(source = env["WW_DATAPATH"], target = ["work/womenwriters.jsonl"])
+    print("Gathering all data")
+    pg_data = env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/data/gutenberg.jsonl"])
+    ww_data = env.ProcessWW(source = env["WW_DATAPATH"], target = ["work/data/womenwriters.jsonl"])
 
-if env["CD"] == "cd":
-   print(f"Cross domain data shuffle")
-   train, test = env.ShuffleData(source = [pg_data], target = [f"work/{env['CD']}/shuffled_train.jsonl", f"work/{env['CD']}/shuffled_test.jsonl"], CROSS_DOMAIN = ww_data)
-else:
-   print(f"Within domain data shuffle")
-   train, test = env.ShuffleData(source = [pg_data], target = [f"work/{env['CD']}/shuffled_train.jsonl", f"work/{env['CD']}/shuffled_test.jsonl"])
+# Downsample Step
+pg_sample = env.CreateSample(source = [pg_data], target = ["work/data/pg_sample.jsonl"])
+ww_sample = env.CreateSample(source = [pg_data], target = ["work/data/ww_sample.jsonl"])
 
 # Encode Step
-train_enc = env.EncodeData(source = train, target = f"work/{env['CD']}/train_encoded.jsonl")
-test_enc = env.EncodeData(source = test, target = f"work/{env['CD']}/test_encoded.jsonl")
+pg_enc = env.EncodeData(source = pg_sample, target = f"work/data/pg_encoded.jsonl")
+ww_enc = env.EncodeData(source = ww_sample, target = f"work/data/ww_encoded.jsonl")
 
-for fl_type in env["CH_EMBED_TYPE"]:
-    print(f"Fl type: {fl_type}")
-    train_data = env.CreateDatapoints(source = train_enc, target = f"work/{env['CD']}/train-{fl_type}.jsonl", FL=fl_type)
-    test_data = env.CreateDatapoints(source = test_enc, target = f"work/{env['CD']}/test-{fl_type}.jsonl", FL=fl_type)
-    result = env.TrainModel(source = [train_data, test_data], target = f"work/result/{env['CD']}/{fl_type}.txt", SAVE_NAME=f"work/best_model/{env['CD']}/{fl_type}.pt")
+# Shuffle + Split
+for i in range(env["NUM_TRIALS"]):
+    if env["CD"] == "cd":
+        print(f"Cross domain data shuffle")
+        train_data, test_data = env.ShuffleData(source = [pg_enc], 
+                                                target = [f"work/experiments/{env['CD']}/trial_{i}/shuffle_train.jsonl",
+                                                          f"work/{env['CD']}/shuffled_test.jsonl"], 
+                                                CROSS_DOMAIN = ww_enc,
+                                                SHUFFLE_SEED = i)
+    else:
+        print(f"Within domain data shuffle")
+        train_data, test_data = env.ShuffleData(source = [pg_enc], 
+                                                target = [f"work/experiments/{env['CD']}/trial_{i}/shuffle_train.jsonl",
+                                                          f"work/{env['CD']}/shuffled_test.jsonl"],
+                                                SHUFFLE_SEED = i)
+
+    for fl_type in env["CH_EMBED_TYPE"]:
+        print(f"Fl type: {fl_type}")
+        train_set = env.CreateDatapoints(source = train_data, 
+                                         target = f"work/experiments/{env['CD']}/trial_{i}/train-{fl_type}.jsonl", 
+                                         FL=fl_type)
+        test_set = env.CreateDatapoints(source = test_data, 
+                                        target = f"work/experiments/{env['CD']}/trial_{i}/test-{fl_type}.jsonl", 
+                                        FL=fl_type)
+        result = env.TrainModel(source = [train_set, test_set], 
+                                target = f"work/experiments/{env['CD']}/trial_{i}/result/{fl_type}.txt", 
+                                SAVE_NAME=f"work/experiments/{env['CD']}/trial_{i}/best_model/{fl_type}.pt",
+                                CUM = f"work/experiments/{env['CD']}/cum-{fl_type}.txt")
+        
