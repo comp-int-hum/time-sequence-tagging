@@ -32,7 +32,7 @@ vars.AddVariables(
     ("MAX_TOKS", "", 512),
     ("LOCAL", "", "False"),
     ("DATA_SIZE", "Number of texts to encode", 3000),
-    ("SAMPLE_SIZE", "Number of texts to grab chapters from", 625)
+    ("SAMPLE_SIZE", "Number of texts to grab chapters from", 625),
     ("TRAIN_TEST_SPLIT", "", 0.8),
     ("SAMPLES", "Number of chapters to sample from text", 5),
     ("EMB_DIM", "Size of BERT embedding", 1536),
@@ -112,14 +112,14 @@ for i in range(env["NUM_TRIALS"]):
         print(f"Cross domain data shuffle")
         train_data, test_data = env.ShuffleData(source = [pg_enc], 
                                                 target = [f"work/experiments/{env['CD']}/trial_{i}/shuffle_train.jsonl",
-                                                          f"work/{env['CD']}/shuffled_test.jsonl"], 
+                                                          f"work/{env['CD']}/trial_{i}/shuffled_test.jsonl"], 
                                                 CROSS_DOMAIN = ww_enc,
                                                 SHUFFLE_SEED = i)
     else:
         print(f"Within domain data shuffle")
         train_data, test_data = env.ShuffleData(source = [pg_enc], 
                                                 target = [f"work/experiments/{env['CD']}/trial_{i}/shuffle_train.jsonl",
-                                                          f"work/{env['CD']}/shuffled_test.jsonl"],
+                                                          f"work/{env['CD']}/trial_{i}/shuffled_test.jsonl"],
                                                 SHUFFLE_SEED = i)
 
     for fl_type in env["CH_EMBED_TYPE"]:
