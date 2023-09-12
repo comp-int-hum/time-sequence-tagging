@@ -12,15 +12,22 @@ from utility import make_dirs
 
 # I'll rethink this file in the future.
 
-def read_shuffle_jsonl_file(filepaths, seed):
+def read_shuffle_jsonl_file(filepaths, seed, sample_size):
     random.seed(seed)
     data = []
     for file in filepaths:
+        size = get_data_size(file)
+        sample = random.sample(range(size), min(size, sample_size))
         with jsonlines.open(file, mode="r") as reader:
-            for text in reader:
-                data.append(text)
+            for i, text in enumerate(reader):
+                if i in sample:
+                    data.append(text)
     random.shuffle(data)
     return data
+
+def get_data_size(filepath):
+    with jsonlines.open(filepath, mode = "r") as reader:
+        return sum(1 for line in reader)
 
 def write_data(filepath, data, start=0, end=None):
     with jsonlines.open(filepath, mode="w") as writer:
@@ -39,7 +46,7 @@ if __name__ == "__main__":
     make_dirs(args.output)
 
     print(f"Shuffling data")
-    data = read_shuffle_jsonl_file(args.inputs, args.seed)
+    data = read_shuffle_jsonl_file(args.inputs, args.seed, args.data_size)
     write_data(args.output, data, end = min(args.data_size, len(data)))
         
             
