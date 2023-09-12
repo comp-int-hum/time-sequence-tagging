@@ -16,7 +16,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", dest="seed", type=int, help = "Seed for random shuffle")
     args, rest = parser.parse_known_args()
 
-    make_dirs(args.output)
+    for output in args.output:
+        make_dirs(args.output)
 
     print(f"Shuffling data")
     train_data = read_shuffle_jsonl_file(args.inputs, args.seed)
