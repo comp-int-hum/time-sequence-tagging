@@ -5,3 +5,4 @@ transformers
 h5py
 jsonlines
 torch
+matplotlib

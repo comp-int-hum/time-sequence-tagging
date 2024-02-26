@@ -113,6 +113,7 @@ if __name__ == "__main__":
             encoded_data["author"] = text["author"]
             encoded_data["edition"] = text["edition"]
             encoded_data["pub_info"] = text["pub_info"]
+            encoded_data["tags"] = text["tags"]
             chapters = OrderedDict()
             valid_chapters = True
             for ch_name, ch_content in text["segments"].items():

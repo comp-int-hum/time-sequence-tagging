@@ -92,6 +92,7 @@ def get_metadata(text):
     encoded_data["author"] = text["author"]
     encoded_data["edition"] = text["edition"]
     encoded_data["pub_info"] = text["pub_info"]
+    encoded_data["tags"] = text["tags"]
     return encoded_data
 
 def get_sample_list(text_len, samples, seed):

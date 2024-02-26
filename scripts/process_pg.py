@@ -1,6 +1,6 @@
 import re
 from bs4 import BeautifulSoup
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import argparse
 import re
 import os
@@ -8,8 +8,10 @@ import csv
 import jsonlines
 import json
 from utility import make_dirs
+import matplotlib.pyplot as plt
 
 potential_docs = 0
+tags = ["P", "PA", "PB", "PC", "PD", "PE", "PF", "PG", "PH", "PJ", "PK", "PL", "PM", "PN", "PQ", "PR", "PS", "PT"]
 ## ______________ HELPER FUNCTIONS ______________________
 
 # see https://github.com/comp-int-hum/gutenberg-ns-extractor/blob/045bddb8d3b264ea99a33063df5a4b3f2e7134bc/scripts/produce_sentence_corpus.py#L19-L21
@@ -204,13 +206,46 @@ def process_volumes(file_path, metadata):
                 return result
     return None
     
+def get_metadata_from_csv(row):
+    locc = row["LoCC"].split(";") if row["LoCC"] else None
+    is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
+    tags = [r.strip() for r in locc] if locc else None
+    return is_lang_lit, tags, {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None, "tags":tags}
+
+def process_files_from_local_directory(base_dir):
+    data = []
+    for filename in os.listdir(base_dir):
+        file_path = os.path.join(base_dir, filename)
+        metadata = {"title": str(file_path), "author": "author", "edition": None, "pub_info": None}
+        volume_data = process_volumes(file_path, metadata)
+        if volume_data:
+            data.append(volume_data)
+    return data
+
+def process_files_from_corpus_directory(catalog_file, base_dir):
+    data = []
+    tag_counts = Counter()
+    with open(catalog_file) as catalog:
+        csv_reader = csv.DictReader(catalog)
+        for i, row in enumerate(csv_reader):
+            is_lang_lit, tags, metadata = get_metadata_from_csv(row)
+            if is_lang_lit and row["Title"].strip():
+                for t in tags:
+                    tag_counts[t] += 1
+                text_num = row["Text#"]
+                file_path = get_gb_html_dir(base_dir, text_num)
+                print(f"File Path: {file_path}")
+                result = process_volumes(file_path, metadata)
+                if result:
+                    data.append(result)
+    return data, tag_counts
 
 ## ______________ MAIN ____________________________________
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
-    parser.add_argument("--input", dest="input", help="csv file")
+    parser.add_argument("--catalog", dest="catalog_file", help="csv file")
     parser.add_argument("--output", dest="outputs", nargs="*", help="Name of output files")
     parser.add_argument("--local", dest="local", help="local files")
     args, rest = parser.parse_known_args()
@@ -221,32 +256,13 @@ if __name__ == "__main__":
     for output in args.outputs:
         make_dirs(output)
 
-    data = []
     if args.local == "True":
         print("IS LOCAL")
-        files = os.listdir(args.base_dir)
-        for filename in files:
-            file_path = os.path.join(args.base_dir, filename)
-            metadata = {"title": str(file_path), "author": "author", "edition": None, "pub_info": None}
-            result = process_volumes(file_path, metadata)
-            if result:
-                data.append(result)
+        data = process_files_from_local_directory(args.base_dir)
     else:
         print("IS NOT LOCAL")
-        with open(args.input) as catalog:
-            csv_reader = csv.DictReader(catalog)
-            potential_docs = 0
-            for i, row in enumerate(csv_reader):
-                locc = row["LoCC"].split(";") if row["LoCC"] else None
-                is_lang_lit = any(tag[0] == "P" for tag in locc) if locc else None
-                if is_lang_lit and row["Title"].strip():
-                    text_num = row["Text#"]
-                    file_path = get_gb_html_dir(args.base_dir, text_num)
-                    print(f"File Path: {file_path}")
-                    metadata = {"title":row["Title"], "author":row["Authors"], "edition":None, "pub_info":None, "form":None}
-                    result = process_volumes(file_path, metadata)
-                    if result:
-                        data.append(result)
+        tag_counts, data = process_files_from_corpus_directory(args.catalog_file, args.base_dir)
+
     for d in data:
         assert(d != {})
 
@@ -255,9 +271,17 @@ if __name__ == "__main__":
     with jsonlines.open(args.outputs[0], "w") as writer:
         writer.write_all(data)
 
-    if len(args.outputs) == 2:
-        with open(args.outputs[1], "w") as output:
-            json.dump(data, output)
+    if tag_counts:
+        tag_categories = list(tag_counts.keys())
+        tag_nums = list(tag_counts.values())
+        plt.bar(range(len(tag_categories)), tag_nums, align = "center")
+        plt.xticks(range(tag_categories), tag_categories)
+        plt.show()
+
+    
+    # if len(args.outputs) == 2:
+    #     with open(args.outputs[1], "w") as output:
+    #         json.dump(data, output)
 
 
 # if __name__ == "__main__":

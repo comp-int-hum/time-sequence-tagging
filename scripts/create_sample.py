@@ -25,6 +25,7 @@ def read_shuffle_jsonl_file(filepaths, seed, sample_size):
     random.shuffle(data)
     return data
 
+# if anything in the source list changes, the target list will be checked
 def get_data_size(filepath):
     with jsonlines.open(filepath, mode = "r") as reader:
         return sum(1 for line in reader)

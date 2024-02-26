@@ -66,7 +66,7 @@ env = Environment(
         ),
         "ProcessPG" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
-            action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --input ${SOURCES} --output ${TARGETS} --local ${LOCAL}",
+            action="python scripts/process_pg.py --base_dir ${PG_DATAPATH} --catalog ${SOURCES} --output ${TARGETS} --local ${LOCAL}",
         ),
         "ProcessWW" : Builder(
             action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",

@@ -26,6 +26,7 @@ class BasicBinaryClassifier(nn.Module):
         # x = torch.cat((first, second), dim = 0).to("cuda")
         # print(f"Cat {x.shape}")
         x = self.fc1(data)
+        x - self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
