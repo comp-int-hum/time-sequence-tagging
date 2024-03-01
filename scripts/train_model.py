@@ -7,17 +7,17 @@ import json
 import os
 from utility import make_dirs
 
-class BasicBinaryClassifier(nn.Module):
-    def __init__(self, input_size):
+class BasicClassifier(nn.Module):
+    def __init__(self, input_size, output_size):
         super().__init__()
         print(f"Input size: {input_size}")
-        self.fc1 = nn.Linear(input_size, 256)
+        self.fc1 = nn.Linear(input_size, 256) # batch_first, H_in
         nn.init.kaiming_normal_(self.fc1.weight, mode="fan_in")
         self.fc2 = nn.Linear(256, 128)
         nn.init.kaiming_normal_(self.fc2.weight, mode="fan_in")
-        self.fc3 = nn.Linear(128,1)
+        self.fc3 = nn.Linear(128,64)
         nn.init.kaiming_normal_(self.fc3.weight, mode="fan_in")
-        self.sigmoid = nn.Sigmoid()
+        self.output = nn.Linear(64, output_size)
         self.relu = nn.ReLU()
         
     def forward(self, data):
@@ -30,7 +30,8 @@ class BasicBinaryClassifier(nn.Module):
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        x = self.sigmoid(x)
+        x = self.relu(x)
+        x = self.output(x)
         return x
 
 def get_batch(filepath, batch_size = 16, device="cuda"):
@@ -45,7 +46,7 @@ def get_batch(filepath, batch_size = 16, device="cuda"):
             if not datapoint["embeddings"]:
                 raise ValueError("missing embedding")
             curr_data_batch.append(datapoint["embeddings"])
-            curr_label_batch.append(float(datapoint["positive"]))
+            curr_label_batch.append(datapoint["labels"])
             
             if len(curr_data_batch) == batch_size:
                 data_batch.append(torch.tensor(curr_data_batch).to(device))
@@ -70,7 +71,11 @@ def evaluate(model, batches, device):
 
             # Output and loss
             output = model(input).squeeze(dim=1)
-            correct += (torch.abs(labels - output) < 0.5).sum().item()
+            _, predicted = torch.max(output, 1)
+            truth = torch.argmax(labels, dim=1)
+            correct += (predicted == truth).sum().item()
+
+            # correct += (torch.abs(labels - output) < 0.5).sum().item()
             total += labels.size(0)
     accuracy = correct / total
     return accuracy
@@ -99,20 +104,19 @@ if __name__ == "__main__":
 
     device = "cuda"
 
-    model = BasicBinaryClassifier(input_size = args.emb_dim)
-    model.to(device)
-
-    loss_fn = nn.BCELoss()
-
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
     num_epochs = args.epochs
     best_accuracy = 0
 
     # Get batches
     train_batches = get_batch(args.train)
     test_batches = get_batch(args.test)
+    
+    model = BasicClassifier(input_size = args.emb_dim, output_size=len(train_batches[1][0]))
+    model.to(device)
+    
+    loss_fn = nn.CrossEntropyLoss()
 
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
     with open(args.result, "w") as file:
         for epoch in range(num_epochs):
             model.train()
