@@ -10,7 +10,7 @@ import json
 from utility import make_dirs
 import matplotlib.pyplot as plt
 
-potential_docs = 0
+# potential_docs = 0
 tags = ["P", "PA", "PB", "PC", "PD", "PE", "PF", "PG", "PH", "PJ", "PK", "PL", "PM", "PN", "PQ", "PR", "PS", "PT"]
 ## ______________ HELPER FUNCTIONS ______________________
 
@@ -169,11 +169,10 @@ def get_volumes_tables(soup, tables):
 
 # Get volumes
 def get_volumes(soup):
-    global potential_docs
     volumes = {}
     try:
         if soup.find_all('p', attrs={"class":"toc"}):
-            potential_docs += 1
+            # potential_docs += 1
             paragraph_toc_elements = soup.find_all('p', attrs={"class":"toc"})
             links = get_links(paragraph_toc_elements)
             volumes = get_volumes_ptoc(soup, links)
@@ -181,17 +180,19 @@ def get_volumes(soup):
             return volumes
         
         elif soup.find(attrs={"class":"chapter"}):
-            potential_docs += 1
+            # potential_docs += 1
             tables = soup.find_all('table')
             volumes = get_volumes_tables(soup, tables)
             # print(f"Chapter Volumes: {volumes}")
             return volumes
     except:
+        # print("Exception")
         return volumes
     return volumes
 
 def process_volumes(file_path, metadata):
     if not os.path.isfile(file_path):
+        print("file path problem")
         return None
     print(f"File Path: {file_path}")
     with open(file_path, 'rb') as file:
@@ -204,6 +205,7 @@ def process_volumes(file_path, metadata):
             result["segments"] = chapters
             if result["segments"]:
                 return result
+    print("found none")
     return None
     
 def get_metadata_from_csv(row):
@@ -230,14 +232,15 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
         for i, row in enumerate(csv_reader):
             is_lang_lit, tags, metadata = get_metadata_from_csv(row)
             if is_lang_lit and row["Title"].strip():
-                for t in tags:
-                    tag_counts[t] += 1
                 text_num = row["Text#"]
                 file_path = get_gb_html_dir(base_dir, text_num)
-                print(f"File Path: {file_path}")
                 result = process_volumes(file_path, metadata)
                 if result:
                     data.append(result)
+                    for t in tags:
+                        tag_counts[t] += 1
+            if i > 1000:
+                break
     return data, tag_counts
 
 ## ______________ MAIN ____________________________________
@@ -251,7 +254,7 @@ if __name__ == "__main__":
     args, rest = parser.parse_known_args()
 
     print(f"Outputs: {args.outputs}")
-    print(f"Input: {args.input}")
+    print(f"Input: {args.catalog_file}")
 
     for output in args.outputs:
         make_dirs(output)
@@ -261,22 +264,25 @@ if __name__ == "__main__":
         data = process_files_from_local_directory(args.base_dir)
     else:
         print("IS NOT LOCAL")
-        tag_counts, data = process_files_from_corpus_directory(args.catalog_file, args.base_dir)
+        data, tag_counts = process_files_from_corpus_directory(args.catalog_file, args.base_dir)
 
     for d in data:
         assert(d != {})
 
-    print(f"Potential docs: {potential_docs}")
+    # print(f"Potential docs: {potential_docs}")
     print(f"Actual docs: {len(data)}")
     with jsonlines.open(args.outputs[0], "w") as writer:
         writer.write_all(data)
 
     if tag_counts:
+        print("Tag counts found")
         tag_categories = list(tag_counts.keys())
         tag_nums = list(tag_counts.values())
         plt.bar(range(len(tag_categories)), tag_nums, align = "center")
-        plt.xticks(range(tag_categories), tag_categories)
+        plt.xticks(range(len(tag_categories)), tag_categories)
+        plt.savefig("gutenberg_dist_by_tags.jpg")
         plt.show()
+    print("No tag counts")
 
     
     # if len(args.outputs) == 2:

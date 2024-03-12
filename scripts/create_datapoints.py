@@ -162,7 +162,7 @@ if __name__ == "__main__":
             context_samples, target_samples = get_sample_list(len(curr_book_chapters), args.samples, args.target, args.seed)
 
             for (cnum, tnums) in zip(context_samples, target_samples):
-                context_chapter = curr_book_chapters[cnum][1]
+                context_chapter = curr_book_chapters[cnum][1] # [1] refers to chapter rather than [0] key
                 
                 if args.same == "True":
                     target_chapters = [curr_book_chapters[tnum] for tnum in tnums].extend([context_chapter])

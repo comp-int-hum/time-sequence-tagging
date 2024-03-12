@@ -25,7 +25,7 @@ import pickle
 vars = Variables("custom.py")
 vars.AddVariables(
     ("WW_DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
-    ("PG_DATAPATH", "", "/export/large_corpora/gutenberg/"),
+    ("PG_DATAPATH", "", "~/corpora/gutenberg/"),
     ("LOCAL_DATA", "", ["./data/warren.adulateur.xml", "./data/haywood.eovaai.xml", "./data/smith.manor.xml"]),
     ("PG_CATALOG", "", "pg_catalog.csv"),
     ("ENC_MODEL_NAME", "", "bert-base-uncased"),
@@ -43,7 +43,8 @@ vars.AddVariables(
     ("NUM_TRIALS", "", 20),
     ("MODEL_EVAL", "", "True"),
     ("SAMPLE_SEED", "", 1),
-    ("DPS_SEED", "", 1)
+    ("DPS_SEED", "", 1),
+    ("USE_GRID", "", 0)
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -72,7 +73,7 @@ env = Environment(
             action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",
         ),
         "CreateSample": Builder (
-            action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --data_size ${DATA_SIZE} --seed {SAMPLE_SEED}"
+            action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --data_size ${DATA_SIZE} --seed ${SAMPLE_SEED}"
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --model_name ${ENC_MODEL_NAME} --output ${TARGETS} --max_toks ${MAX_TOKS}"
@@ -92,19 +93,32 @@ env = Environment(
 # Get data
 if env["LOCAL"] == "True":
     print("Debugging run")
-    pg_local = env.ProcessPGLocal(source = env["PG_CATALOG"] , target = ["work/gutenberg.jsonl", "work/test.txt"])
+    pg_local = env.ProcessPGLocal(source = env["PG_CATALOG"] ,
+                                  target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
     print("Gathering all data")
-    pg_data = env.ProcessPG(source = env["PG_CATALOG"] , target = ["work/data/gutenberg.jsonl"])
-    ww_data = env.ProcessWW(source = env["WW_DATAPATH"], target = ["work/data/womenwriters.jsonl"])
+    pg_data = env.ProcessPG(source = env["PG_CATALOG"] ,
+                            target = ["work/data/gutenberg.jsonl"])
+    ww_data = env.ProcessWW(source = env["WW_DATAPATH"],
+                            target = ["work/data/womenwriters.jsonl"])
 
 # Downsample Step
-pg_sample = env.CreateSample(source = [pg_data], target = ["work/data/pg_sample.jsonl"])
-ww_sample = env.CreateSample(source = [pg_data], target = ["work/data/ww_sample.jsonl"])
+pg_sample = env.CreateSample(source = [pg_data],
+                             target = ["work/data/pg_sample.jsonl"])
+ww_sample = env.CreateSample(source = [pg_data],
+                             target = ["work/data/ww_sample.jsonl"])
 
 # Encode Step
-pg_enc = env.EncodeData(source = pg_sample, target = f"work/data/pg_encoded.jsonl")
-ww_enc = env.EncodeData(source = ww_sample, target = f"work/data/ww_encoded.jsonl")
+pg_enc = env.EncodeData(source = pg_sample,
+                        target = f"work/data/pg_encoded.jsonl",
+                        GRID_GPU_COUNT=1,
+                        GRID_ACCOUNT="tlippin1_gpu",
+                        GRID_QUEUE="a100")
+ww_enc = env.EncodeData(source = ww_sample,
+                        target = f"work/data/ww_encoded.jsonl",
+                        GRID_GPU_COUNT=1,
+                        GRID_ACCOUNT="tlippin1_gpu",
+                        GRID_QUEUE="a100")
 
 # Shuffle + Split
 for i in range(env["NUM_TRIALS"]):
@@ -126,12 +140,17 @@ for i in range(env["NUM_TRIALS"]):
         print(f"Fl type: {fl_type}")
         train_set = env.CreateDatapoints(source = train_data, 
                                          target = f"work/experiments/{env['CD']}/trial_{i}/train-{fl_type}.jsonl", 
-                                         FL=fl_type)
+                                         FL=fl_type,
+                                         GRID_MEMORY="4G")
         test_set = env.CreateDatapoints(source = test_data, 
                                         target = f"work/experiments/{env['CD']}/trial_{i}/test-{fl_type}.jsonl", 
-                                        FL=fl_type)
+                                        FL=fl_type,
+                    GRID_MEMORY="4G")
         result = env.TrainModel(source = [train_set, test_set], 
                                 target = f"work/experiments/{env['CD']}/trial_{i}/result/{fl_type}.txt", 
                                 SAVE_NAME=f"work/experiments/{env['CD']}/trial_{i}/best_model/{fl_type}.pt",
-                                CUM = f"work/experiments/{env['CD']}/cum-{fl_type}.txt")
+                                CUM = f"work/experiments/{env['CD']}/cum-{fl_type}.txt",
+                                GRID_GPU_COUNT=1,
+                                GRID_ACCOUNT="tlippin1_gpu",
+                                GRID_QUEUE="a100")
         

@@ -47,7 +47,7 @@ if __name__ == "__main__":
     make_dirs(args.output)
 
     print(f"Shuffling data")
-    data = read_shuffle_jsonl_file(args.inputs, args.seed, args.data_size)
-    write_data(args.output, data, end = min(args.data_size, len(data)))
+    data = read_shuffle_jsonl_file(args.inputs, args.seed, args.max_data_size)
+    write_data(args.output, data, end = min(args.max_data_size, len(data)))
         
             
