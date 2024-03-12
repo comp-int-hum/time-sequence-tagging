@@ -82,7 +82,7 @@ env = Environment(
             action="python scripts/shuffle_data.py --inputs ${SOURCES} --output ${TARGETS} --sample_size ${SAMPLE_SIZE} --split_ratio ${TRAIN_TEST_SPLIT} --cd ${CROSS_DOMAIN} --seed ${SHUFFLE_SEED}"
         ),
         "CreateDatapoints": Builder(
-            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${SAME_CH} --fl ${FL} --seed ${DPS_SEED}"
+            action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${SAME_CH} --context_size ${FL} --seed ${DPS_SEED}"
         ),
         "TrainModel": Builder(
             action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS} --cum ${CUM}"
@@ -112,12 +112,12 @@ ww_sample = env.CreateSample(source = [pg_data],
 pg_enc = env.EncodeData(source = pg_sample,
                         target = f"work/data/pg_encoded.jsonl",
                         GRID_GPU_COUNT=1,
-                        GRID_ACCOUNT="tlippin1_gpu",
+                        GRID_ACCOUNT="sli159_gpu",
                         GRID_QUEUE="a100")
 ww_enc = env.EncodeData(source = ww_sample,
                         target = f"work/data/ww_encoded.jsonl",
                         GRID_GPU_COUNT=1,
-                        GRID_ACCOUNT="tlippin1_gpu",
+                        GRID_ACCOUNT="sli159_gpu",
                         GRID_QUEUE="a100")
 
 # Shuffle + Split
@@ -151,6 +151,6 @@ for i in range(env["NUM_TRIALS"]):
                                 SAVE_NAME=f"work/experiments/{env['CD']}/trial_{i}/best_model/{fl_type}.pt",
                                 CUM = f"work/experiments/{env['CD']}/cum-{fl_type}.txt",
                                 GRID_GPU_COUNT=1,
-                                GRID_ACCOUNT="tlippin1_gpu",
+                                GRID_ACCOUNT="sli159_gpu",
                                 GRID_QUEUE="a100")
         

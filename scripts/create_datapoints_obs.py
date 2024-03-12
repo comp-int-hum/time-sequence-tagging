@@ -39,8 +39,30 @@ def split_chapter(encoded_chapter, fl="all"):
     
     return None
 
+def get_first_half(encoded_chapter):
+    return split_chapter(encoded_chapter)[0]
+
+def get_second_half(encoded_chapter):
+    return split_chapter(encoded_chapter)[1]
+
 def average_embeddings(sent_embeddings):
     return [sum(parameter) / len(sent_embeddings) for parameter in zip(*sent_embeddings)] if sent_embeddings else None
+
+# input: chapter num and encoded_text
+
+# input: metadata is a dict
+def create_binary_datapoint_pair(metadata, prev_ch, next_ch, prev_ch_n, next_ch_n, fl):
+    prev = split_chapter(prev_ch, fl)
+    next = split_chapter(next_ch, fl)
+    if not prev or not next:
+        return None
+    
+    positive_dp = create_binary_datapoint(metadata, prev[1], next[0], prev_ch_n, next_ch_n, True)
+    negative_dp = create_binary_datapoint(metadata, next[0], next[1], next_ch_n, next_ch_n, False)
+    
+    if positive_dp and negative_dp:
+        return [positive_dp, negative_dp]
+    return None
 
 def create_multiclass_datapoint(metadata, context_chapter, target_chapters, context_size):
     # Get embedding for context chapter
@@ -72,15 +94,36 @@ def create_multiclass_datapoint(metadata, context_chapter, target_chapters, cont
     datapoint["context_name"] = context_chapter[0]
     datapoint["target_names"] = target_names
     return datapoint
+  
+def create_binary_datapoint(metadata, prev, next, prev_ch_n, next_ch_n, positive):
+    emb_prev = average_embeddings(prev)
+    emb_next = average_embeddings(next)
+
+    if emb_prev and emb_next:
+        dp = metadata.copy()
+        emb_prev.extend(emb_next)
+        dp["embeddings"] = emb_prev
+        assert(dp["embeddings"])
+        dp["prev_chapter_name"] = prev_ch_n
+        dp["next_chapter_names"] = next_ch_n
+        dp["data_type"] = positive
+        return dp
     
-def copy_metadata(text, ch_name=[]):
+    return None
+    
+# # Input: number of times to sample
+# # Output: samples
+# def sample_chapters(num_samples, encoded_text):
+#     num_chapters = len(encoded_text)
+#     random_samples = random.sample(range(0, num_chapters-1), num_samples)
+
+def get_metadata(text):
     encoded_data = {}
     encoded_data["title"] = text["title"]
     encoded_data["author"] = text["author"]
     encoded_data["edition"] = text["edition"]
     encoded_data["pub_info"] = text["pub_info"]
     encoded_data["tags"] = text["tags"]
-	encoded_data["chaper_names"] = ch_name
     return encoded_data
 
 def get_sample_list(text_len, samples, choice_size, seed):
@@ -90,25 +133,7 @@ def get_sample_list(text_len, samples, choice_size, seed):
     choice_samples = [random.sample(range(context+2, text_len), choice_size-1) for context in context_samples]
     return context_samples, choice_samples
 
-def create_positive_sample_emb(chapters, context_size):
-	effective_size = context_size // 2
-	first_ch, second_ch = chapters
-	first_ch_embeds = get_embeddings_for_chapter(first_ch)
-	second_ch_embeds = get_embeddings_for_chapter(second_ch)
-	if len(first_ch_embeds) < effective_size or len(second_ch_embeds) < effective_size:
-		print("Context size too small for positive datapoint")
-		return None
-	return (average_embeddings(first_ch_embeds[-effective_size:]), average_embeddings(second_ch_embeds[:effective_size]))
-	
-def create_negative_sample_emb(chapter, context_size):
-	ch_embeds = get_embeddings_for_chapter(chapter)
-	if len(ch_embeds) < context_size:
-		print("Context size too small for negative datapoint")
-		return None
-	start_index = random.randint(0, len(ch_embeds)-1-context_size)
-	pre_embeds = ch_embeds[start_index: start_index + (context_size // 2)]
-	post_embeds = ch_embeds[start_index + (context_size // 2) : start_index + context_size]
-	return (average_embeddings(pre_embeds), average_embeddings(post_embeds))
+def create_positive_sample(context_size):
 	
 
 if __name__ == "__main__":
@@ -117,17 +142,16 @@ if __name__ == "__main__":
     parser.add_argument("--input", dest="input", help="Encoded file")
     parser.add_argument("--output", dest="output", help="Name for datapoints file")
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
-    parser.add_argument("--same", dest="same", help="True if chapter examples are from same text")
+    parser.add_argument("--same_text", dest="same", help="True if chapter examples are from same text")
     parser.add_argument("--context_size", dest="context_size", help="Exclude first last (no_fl), only first last (fl), all") # fl stands for first last
-    # parser.add_argument("--negative_size", dest="target", type = int, help="Number of negative examples")
+    parser.add_argument("--negative_size", dest="target", type = int, help="Number of negative examples")
     parser.add_argument("--seed", dest="seed", type=int)
     args, rest = parser.parse_known_args()
-
-	random.seed(args.seed)
 
     print(f"Same: {args.same}")
 
     make_dirs(args.output)
+    assert(args.target_size >= 2)
     
     with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
         # For line in jsonlines
@@ -136,26 +160,30 @@ if __name__ == "__main__":
         for idx, text in enumerate(input):
             metadata = get_metadata(text)
             
-            curr_book_chapters = list(text["encoded_segments"].items()) # Tuple list
+            curr_book_chapters = list(text["encoded_segments"].items())
 
-            positive_sample_indices = random.sample(len(curr_book_chapters)-1, args.samples) 
-			positive_samples = [curr_book_chapters[i:i+1] for i in positive_sample_indices]
+            positive_samples = random.sample(curr_book_chapters[:-1], args.samples) # remember, this is a list of tuples
+			negative_samples = random.sample(curr_book_chapters, args.samples)
 
-			if args.same == "True":
-				negative_samples = random.sample(curr_book_chapters, args.samples) # remember, this is a list of tuples
-			else:
-				negative_samples = random.sample(prev_book_chapters, args.samples)
 
-			for ch_name, ch in zip(*positive_samples):
-				pos_dp = copy_metadata(text, ch_name)
-				pos_dp["segment"] = create_positive_sample_emb(ch, args.context_size)
-				data.append(pos_dp)
 
-			for ch_name, ch in zip(*negative_samples):
-				neg_dp = copy_metadata(text, ch_name)
-				neg_dp["segment"] = create_negative_sample_emb(ch, args.context_size)
-				data.append(neg_dp)
-
+            # for (cnum, tnums) in zip(positive_samples, negative_samples):
+            #     context_chapter = curr_book_chapters[cnum][1] # [1] refers to chapter rather than [0] key
+                
+            #     if args.same == "True":
+            #         target_chapters = [curr_book_chapters[tnum] for tnum in tnums].extend([context_chapter])
+            #     else:
+            #         if len(prev_book_chapters) >= args.target:
+            #             choice_samples = random.sample(range(0, len(prev_book_chapters)), args.target)
+            #             target_chapters = [prev_book_chapters[c][1] for c in choice_samples].extend([context_chapter])
+            #         else:
+            #             continue
+                
+            #     # dps = create_binary_datapoint_pair(metadata, 
+            #     dps = create_multiclass_datapoint(metadata, context_chapter, target_chapters, args.context_size)
+            #     if dps:
+            #         data.append(dps) # add to overall datapoints
+                
             prev_book_chapters = curr_book_chapters
 
         random.shuffle(data)
