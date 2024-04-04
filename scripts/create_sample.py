@@ -3,6 +3,7 @@ import jsonlines
 import random
 import os
 from utility import make_dirs
+import gzip
 # def float_type(arg):
 #     try:
 #         return float(arg)
@@ -13,6 +14,7 @@ from utility import make_dirs
 # I'll rethink this file in the future.
 
 def read_shuffle_jsonl_file(filepaths, seed, sample_size):
+    print("Start shuffle")
     random.seed(seed)
     data = []
     for file in filepaths:
@@ -25,10 +27,25 @@ def read_shuffle_jsonl_file(filepaths, seed, sample_size):
     random.shuffle(data)
     return data
 
+# def read_shuffle_compressed_jsonl_file(filepaths, seed, sample_size, file_size):
+#     print("Start shuffle")
+#     random.seed(seed)
+#     data = []
+#     for file in filepaths:
+#         size = get_data_size(file) if not file_size else file_size
+#         sample = random.sample(range(size), min(size, sample_size))
+#         with gzip.open(file, mode="rt") as gzipfile:
+#             reader = jsonlines.Reader(gzipfile)
+#             for i, text in enumerate(reader):
+#                 if i in sample:
+#                     data.append(text)
+#     random.shuffle(data)
+#     return data
+
 # if anything in the source list changes, the target list will be checked
 def get_data_size(filepath):
     with jsonlines.open(filepath, mode = "r") as reader:
-        return sum(1 for line in reader)
+        return sum(1 for _ in reader)
 
 def write_data(filepath, data, start=0, end=None):
     with jsonlines.open(filepath, mode="w") as writer:

@@ -3,20 +3,15 @@ import json
 import re
 from transformers import BertModel, BertTokenizer
 import torch
-import h5py
 import jsonlines
 import torch
 from collections import OrderedDict
 from utility import make_dirs
+import gzip
+from utility import make_dirs
+import json
 
-# Input: chapter_dict representing one chapter: key=paragraph_num, value = string paragraph_content
-# Output: list of all sentences in the chapter
-def get_chapter_sentences(chapter_dict):
-    all_sent = []
-    paragraph_sentences = get_paragraph_sentences(chapter_dict) # dictionary
-    for sentences in paragraph_sentences.values():
-        all_sent.extend(sentences)
-    return all_sent
+
 
 # Input: chapter_dict representing one chapter: key=paragraph_num, value= string paragraph_content
 # Output: dict representing one chapter: key=paragraph_num, value=list of sentences in paragraph
@@ -53,7 +48,7 @@ def resize_batch(sentences, batch_size):
 
     return result_batches
 
-def encode_chapter(tokenizer, model, ch_name, ch_content):
+def encode_chapter(tokenizer, model, ch_name, ch_content, max_toks):
     chapter = {}
     chapter_by_par = get_paragraph_sentences(ch_content)
     print(f"Chapter name: {ch_name}")
@@ -65,7 +60,7 @@ def encode_chapter(tokenizer, model, ch_name, ch_content):
         par_name = "p" + str(pnum)
         chapter[par_name] = []
         for batch in result_batches:
-            tokens = tokenizer(batch, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
+            tokens = tokenizer(batch, padding=True, truncation=True, return_tensors="pt", max_length=max_toks)
             bert_output = model(input_ids = tokens["input_ids"].to(device),
                                 attention_mask = tokens["attention_mask"].to(device),
                                 token_type_ids = tokens["token_type_ids"].to(device),
@@ -79,41 +74,39 @@ def encode_chapter(tokenizer, model, ch_name, ch_content):
     
     return chapter
 
+def new_file_name(base, file_num):
+    return f"{base}_{file_num}.jsonl.gz"
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="File containing gutenberg & women writers project")
+    parser.add_argument("--output", dest="output", help="Output file")
     parser.add_argument("--model_name", dest="model_name", help="Encoder model to use")
-    parser.add_argument("--output", dest="output", help="Output files")
     parser.add_argument("--max_toks", type=int, dest="max_toks")
     args, rest = parser.parse_known_args()
 
-    # if torch.cuda.is_available():
-    #     device = "cuda"
-    # else:
-    #     device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
 
-    # print(f"Device: {device}")
-
-    make_dirs(args.output)
+    print(f"Device: {device}")
 
     torch.cuda.empty_cache()
-
-    device = "cuda"
 
     tokenizer = BertTokenizer.from_pretrained(args.model_name)
     model = BertModel.from_pretrained(args.model_name)
     model.to(device)
 
-    with jsonlines.open(args.input, "r") as input, jsonlines.open(args.output, mode="w") as writer:
+    with open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
         # For line in jsonlines
+        input = jsonlines.Reader(input_file)
+        output = jsonlines.Writer(output_file)
+        enc_file_num = 0
         for idx, text in enumerate(input):
             encoded_data = {}
-            encoded_data["title"] = text["title"]
-            encoded_data["author"] = text["author"]
-            encoded_data["edition"] = text["edition"]
-            encoded_data["pub_info"] = text["pub_info"]
-            encoded_data["tags"] = text["tags"]
+            encoded_data["id"] = text["id"]
             chapters = OrderedDict()
             valid_chapters = True
             for ch_name, ch_content in text["segments"].items():
@@ -121,53 +114,7 @@ if __name__ == "__main__":
                     print("NO CONTENT FOUND")
                     valid_chapters = False
                     break
-                chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content)
+                chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content, args.max_toks)
             encoded_data["encoded_segments"] = chapters
             if valid_chapters:
-                writer.write(encoded_data)
-
-            
-
-        
-
-
-#### _______________H5PY TEST CODE __________________
-    # with jsonlines.open(args.input) as input, h5py.File(args.output, 'w') as output:
-    #     duplicates = set()
-    #     for idx, text in enumerate(input):
-    #         if text["title"] in duplicates:
-    #             continue
-    #         else:
-    #             duplicates.add(text["title"])
-    #         # Create groups
-    #         group = output.create_group(text["title"])
-    #         author = group.create_group("author")
-    #         edition = group.create_group("edition")
-    #         pub_info = group.create_group("pub_info")
-
-    #         # Assign values to groups
-    #         # group["author"] = text["author"]
-    #         author.create_dataset(text["author"])
-    #         # group["edition"] = text["edition"]
-    #         # save_dict_to_hdf5(pub_info, text["pub_info"])
-
-    #         for cnum, ch_name, ch_content in enumerate(text["segments"].items()):
-    #             chapter_s = get_chapter_sentences(ch_content)
-    #             batch = tokenizer(chapter_s, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
-    #             bert_output = model(input_ids = batch["input_ids"].to(device),
-    #                                 attention_mask = batch["attention_mask"].to(device),
-    #                                 token_type_ids = batch["token_type_ids"].to(device),
-    #                                 output_hidden_states = True)
-            
-    #             bert_hidden_states = bert_output["hidden_states"]
-    #             cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be batch_size, hidden_size
-    #             chapter_folder = group.create_group(str(cnum))
-    #             chapter_folder.create_dataset(str(ch_name), data=cls_token_batch.numpy())
-
-
-
-                
-
-
-
-    
+                output.write(encoded_data)

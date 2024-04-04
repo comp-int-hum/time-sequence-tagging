@@ -205,7 +205,7 @@ def process_volumes(file_path, metadata):
             result["segments"] = chapters
             if result["segments"]:
                 return result
-    print("found none")
+    print("Could not parse into chapters")
     return None
     
 def get_metadata_from_csv(row):
@@ -236,11 +236,12 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
                 file_path = get_gb_html_dir(base_dir, text_num)
                 result = process_volumes(file_path, metadata)
                 if result:
+                    result["id"] = i
                     data.append(result)
                     for t in tags:
                         tag_counts[t] += 1
-            if i > 1000:
-                break
+            # if i > 100:
+            #     break
     return data, tag_counts
 
 ## ______________ MAIN ____________________________________
