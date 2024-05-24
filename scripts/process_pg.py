@@ -63,8 +63,7 @@ def get_chapter(soup, first, second):
     end = (soup.find('a', id=second) or soup.find('a', attrs = {"name": second})) if second else None
     
     curr = start.find_next()
-    paragraph_dict = {}
-    pnum = 0
+    paragraphs = []
     while curr != end:
         if not curr:
             return None
@@ -74,12 +73,11 @@ def get_chapter(soup, first, second):
         if curr.name == "p":
             par = clean_string(curr.get_text())
             if par:
-                paragraph_dict[pnum] = par
-                pnum += 1
+                paragraphs.append(par)
         curr = curr.find_next()
     
-    if paragraph_dict:
-        return paragraph_dict
+    if paragraphs:
+        return paragraphs
     return None
 
 # Input: list of elements containing anchors
@@ -106,28 +104,28 @@ def get_volumes_ptoc(soup, links):
     toc_anchors = list(links.values())
     volumes = {}
     curr_vol_name = ""
-    chapter_dict = OrderedDict()
+    chapters_dict = OrderedDict()
     for i in range(len(toc_hrefs)):
         first_href = toc_hrefs[i]
         second_href = toc_hrefs[i+1] if i+1 < len(toc_hrefs) else None
         chapter_content = get_chapter(soup, first_href, second_href)
         if not chapter_content: # if not a chapter, just a link
-            volumes[curr_vol_name] = chapter_dict
+            volumes[curr_vol_name] = chapters_dict
             # if valid_volume_header(curr_vol_name): # if not empty and not footnote
             #     volumes[curr_vol_name] = chapter_dict # add previous volume
             #     print(f"TOC anchor: {curr_vol_name}")
             new_vol_name = clean_string(toc_anchors[i].get_text()) # update to new vol_name
             if valid_volume_header(new_vol_name):
                 curr_vol_name = new_vol_name
-                chapter_dict = OrderedDict() # new empty dict
+                chapters_dict = OrderedDict() # new empty dict
             print(f"New volume name: {curr_vol_name}")
         else: # if valid chapter
             chapter_name = clean_string(toc_anchors[i].get_text())
             if "footnotes" not in chapter_name.lower():
                 print(f"Chapter name: {chapter_name}")
-                chapter_dict[chapter_name] = chapter_content
+                chapters_dict[chapter_name] = chapter_content
 
-    volumes[curr_vol_name] = chapter_dict
+    volumes[curr_vol_name] = chapters_dict
     # print(chapter_dict)
     if not volumes[""]:
         volumes.pop("")
@@ -139,7 +137,7 @@ def get_volumes_ptoc(soup, links):
 def get_chapters(soup, links):
     toc_hrefs = list(links.keys())
     toc_anchors = list(links.values())
-    chapter_dict = OrderedDict()
+    chapters_dict = OrderedDict()
     for i in range(len(toc_hrefs)):
         first_href = toc_hrefs[i]
         second_href = toc_hrefs[i+1] if i+1 < len(toc_hrefs) else None
@@ -149,9 +147,9 @@ def get_chapters(soup, links):
         else: # if valid chapter
             chapter_name = clean_string(toc_anchors[i].get_text())
             if "footnotes" not in chapter_name.lower():
-                chapter_dict[chapter_name] = chapter_content
+                chapters_dict[chapter_name] = chapter_content
 
-    return chapter_dict
+    return chapters_dict
 
 def get_volumes_tables(soup, tables):
     volumes = {}
@@ -161,10 +159,10 @@ def get_volumes_tables(soup, tables):
     for table in tables:
         if is_content_table(table) and table.previous_sibling and table.previous_sibling.string:
             links = get_links([table])
-            chapter_dict = get_chapters(soup, links)
-            if chapter_dict:
+            chapters_dict = get_chapters(soup, links)
+            if chapters_dict:
                 volume_name = clean_string(table.previous_sibling.string)
-                volumes[volume_name] = chapter_dict
+                volumes[volume_name] = chapters_dict
     return volumes
 
 # Get volumes

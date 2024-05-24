@@ -8,29 +8,21 @@ import torch
 from collections import OrderedDict
 from utility import make_dirs
 import gzip
-from utility import make_dirs
 import json
-
-
+import nltk
 
 # Input: chapter_dict representing one chapter: key=paragraph_num, value= string paragraph_content
 # Output: dict representing one chapter: key=paragraph_num, value=list of sentences in paragraph
-def get_paragraph_sentences(chapter_dict):
-    paragraphs = OrderedDict()
-    for pnum, paragraph in enumerate(list(chapter_dict.values())):
-        paragraphs[pnum] = get_sentences(paragraph) # list of sentences
-    # print(paragraphs)
+def get_paragraphs(chapter):
+    paragraphs = []
+    for paragraph in chapter:
+        paragraphs.append(get_sentences(paragraph)) # list of sentences
     return paragraphs
 
 # Split paragraph text into list of sentences
 def get_sentences(paragraph):
-    return re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', paragraph)
-
-def save_dict_to_hdf5(pointer, dict):
-    if dict:
-        for key, val in dict.items():
-            pointer.create_group(key)
-            pointer[key] = val
+    # return re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', paragraph)
+    return nltk.sent_tokenize(paragraph)
 
 def resize_batch(sentences, batch_size):
     current_batch = []
@@ -49,16 +41,15 @@ def resize_batch(sentences, batch_size):
     return result_batches
 
 def encode_chapter(tokenizer, model, ch_name, ch_content, max_toks):
-    chapter = {}
-    chapter_by_par = get_paragraph_sentences(ch_content)
+    chapter_embeds = []
+    chapter_paragraphs = get_paragraphs(ch_content)
     print(f"Chapter name: {ch_name}")
     
     # Iterate through paragraphs in chapters, grabbing sentence embeddings per paragraph
-    for pnum, sents in chapter_by_par.items():
+    for paragraph in chapter_paragraphs:
 
-        result_batches = resize_batch(sentences=sents, batch_size=5)
-        par_name = "p" + str(pnum)
-        chapter[par_name] = []
+        result_batches = resize_batch(sentences=paragraph, batch_size=5)
+        par_embeds = []
         for batch in result_batches:
             tokens = tokenizer(batch, padding=True, truncation=True, return_tensors="pt", max_length=max_toks)
             bert_output = model(input_ids = tokens["input_ids"].to(device),
@@ -70,12 +61,10 @@ def encode_chapter(tokenizer, model, ch_name, ch_content, max_toks):
             cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be curr_batch_size, hidden_size
         # assert(len(sents) == cls_token_batch.size(0))
             s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
-            chapter[par_name].extend([s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings])
+            par_embeds.extend([s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings])
+        chapter_embeds.append(par_embeds)
     
-    return chapter
-
-def new_file_name(base, file_num):
-    return f"{base}_{file_num}.jsonl.gz"
+    return (chapter_embeds, chapter_paragraphs)
 
 if __name__ == "__main__":
 
@@ -107,6 +96,7 @@ if __name__ == "__main__":
         for idx, text in enumerate(input):
             encoded_data = {}
             encoded_data["id"] = text["id"]
+            encoded_data["original_text"] = text["segments"]
             chapters = OrderedDict()
             valid_chapters = True
             for ch_name, ch_content in text["segments"].items():

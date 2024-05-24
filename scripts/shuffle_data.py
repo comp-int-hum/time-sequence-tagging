@@ -20,7 +20,7 @@ def generate_splits(datapath, output_paths, all_samples):
                 if i in train:
                     output_paths[num].write(json.dumps(text) + "\n")
                 elif i in test:
-                    output_paths[num_experiments + num].write(json.dumps(text) + "\n")        
+                    output_paths[num_experiments + num].write(json.dumps(text) + "\n")
 
 
 
@@ -38,6 +38,8 @@ if __name__ == "__main__":
         raise argparse.ArgumentTypeError(f"Incorrect number of filepaths")
     
     random.seed(args.seed)
+    
+    print(f"***************** BEGIN SHUFFLE **********************")
 
     # Make output paths
     output_paths = []
@@ -57,8 +59,8 @@ if __name__ == "__main__":
 
     for i in range(num_repeat):
         curr_sample = random.sample(range(source_size), source_sample_size)
-        train = set(curr_sample[tr_size:])
-        test = set(curr_sample[:tr_size]) if not args.cd else []
+        train = set(curr_sample[:tr_size])
+        test = set(curr_sample[tr_size:]) if not args.cd else []
         source_samples.append((train, test))
 
     # Write to output source document splits

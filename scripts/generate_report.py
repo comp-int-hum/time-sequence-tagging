@@ -1,7 +1,7 @@
 import argparse
 import json
 import jsonlines
-from encode_data import get_paragraph_sentences
+from encode_data import get_paragraphs
 
 #
 # This script does *nothing* except print out its arguments and touch any files
@@ -29,40 +29,27 @@ def get_texts(pg_path, line_nums):
                 texts[text["id"]] = text
     return texts
 
-# Input: chapter_dict representing one chapter: key=paragraph_num, value = string paragraph_content
-# Output: list of all sentences in the chapter
-def get_chapter_sentences(chapter_dict):
-    all_sent = []
-    paragraph_sentences = get_paragraph_sentences(chapter_dict) # dictionary
-    for sentences in paragraph_sentences.values():
-        all_sent.extend(sentences)
-    return all_sent
-
-def get_passage(pg_text, incorrect_text):
-    print(f"Incorrect text: {incorrect_text.keys()}")
-    ch_names = incorrect_text["chapters"]
+def get_error_output(pg_text, model_type, incorrect_text):
+    output = {"Title": pg_text["title"], "Author": pg_text["author"]}
+    if model_type == "classifier":
+        if incorrect_text["ground_truth"]:
+            output["POSITIVE"] = " ".join(incorrect_text["first_ch"]) + "****** CHAPTER BOUNDARY ******" + " ".join(incorrect_text["second_ch"]) 
+        else:
+            output["NEGATIVE"] = " ".join(incorrect_text["first_ch"])
+    else:
+        output["LABELS"] = incorrect_text["labels"]
+        # output["ACCURACY"] = incorrect_text["accuracy"]
+        # output["PRECISION"] = incorrect_text["precision"]
+        # output["RECALL"] = incorrect_text["recall"]
+        output["ERRORS"] = incorrect_text["errors"]
+    return output
     
-    first_start, first_end = incorrect_text["first_ch"]
-    
-    if not ch_names[0] in pg_text["segments"]:
-        return ""
-    first_chapter = get_chapter_sentences(pg_text["segments"][ch_names[0]])
-    first_passage = first_chapter[first_start : first_end]
-
-    if len(ch_names) == 2:
-        if not ch_names[1] in pg_text["segments"]:
-            return ""
-        second_chapter = get_chapter_sentences(pg_text["segments"][ch_names[1]])
-        second_start, second_end = incorrect_text["second_ch"]
-        second_passage = second_chapter[second_start : second_end]
-        return {"Title": pg_text["title"], "Author": pg_text["author"], "POSITIVE" : " [SEP] ".join(first_passage) + " **** CHAPTER BOUNDARY **** " + " [SEP] ".join(second_passage)}
-    
-    return {"Title": pg_text["title"], "Author": pg_text["author"], "NEGATIVE": " [SEP] ".join(first_passage)}
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="Input files")
     parser.add_argument("--pg_path", dest="pg_path", help="Project Gutenberg path")
+    parser.add_argument("--model_type", dest="model_type", help="Classifier vs sequence tagger")
     parser.add_argument("--output", dest="output", help="Output files")
     # parser.add_argument("--context_size", dest="context", nargs=1, help="context size of original exp")
     args, rest = parser.parse_known_args()
@@ -72,23 +59,17 @@ if __name__ == "__main__":
     reverse_dict = get_reverse_dict(args.pg_path)
     incorrect_texts = []
     with open(args.input, "r", encoding="utf-8") as input:
-        # json_next = False
-        # for line in input:
-        #     if json_next:
-        #         print(line)
-        #         incorrect_texts = json.loads(line)
-        #         json_next = False
-        #     elif "***" in line:
-        #         json_next = True
         incorrect_texts = json.load(input)
     print(f"Len of reverse: {len(reverse_dict)}")
     line_nums = get_lines_to_read(reverse_dict, incorrect_texts)
-    print(f"Line nnums: {line_nums}")
+    print(f"Line nums: {line_nums}")
     pg_texts = get_texts(args.pg_path, line_nums)
-    print(pg_texts)
     with open(args.output, "w") as output:
+        i = 0
         for incorrect in incorrect_texts:
-            output.write(json.dumps(get_passage(pg_texts[incorrect["id"]], incorrect)) + "\n")
+            i+= 1
+            output.write(json.dumps(get_error_output(pg_texts[incorrect["id"]], args.model_type, incorrect)) + "\n")
+        print(f"NUM INCORRECT TEXTS: {i}")
 
 
                     
