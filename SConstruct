@@ -11,17 +11,10 @@ import time
 import imp
 import sys
 import json
-import steamroller
+from steamroller import Environment
 import jsonlines
-# workaround needed to fix bug with SCons and the pickle module
-del sys.modules['pickle']
-sys.modules['pickle'] = imp.load_module('pickle', *imp.find_module('pickle'))
-import pickle
 
-# Variables control various aspects of the experiment.  Note that you have to declare
-# any variables you want to use here, with reasonable default values, but when you want
-# to change/override the default values, do so in the "custom.py" file (see it for an
-# example, changing the number of folds).
+
 vars = Variables("custom.py")
 vars.AddVariables(
     ("WW_DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
@@ -60,19 +53,10 @@ vars.AddVariables(
     ("GRID_TIME", "", "48:00:00")
 )
 
-# Methods on the environment object are used all over the place, but it mostly serves to
-# manage the variables (see above) and builders (see below).
+
 env = Environment(
     variables=vars,
     ENV=os.environ,
-    tools=[steamroller.generate],
-    
-    # Defining a bunch of builders (none of these do anything except "touch" their targets,
-    # as you can see in the dummy.py script).  Consider in particular the "TrainModel" builder,
-    # which interpolates two variables beyond the standard SOURCES/TARGETS: PARAMETER_VALUE
-    # and MODEL_TYPE.  When we invoke the TrainModel builder (see below), we'll need to pass
-    # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
-    # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
         "ProcessPGLocal" : Builder(
             # action="python scripts/create_data.py --data_path ${SOURCES} --output ${TARGETS} --granularity $SEGMENT_BY_PG",
