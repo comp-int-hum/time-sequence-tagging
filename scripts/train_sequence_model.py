@@ -173,7 +173,6 @@ if __name__ == "__main__":
     make_dirs(args.model_name)
     make_dirs(args.result)
 
-    print(f"LEN OF CMMMMMMMMMMMMMMMMMM: {args.cm}")
     print(f"**Is training**")
 
     torch.cuda.empty_cache()
@@ -217,9 +216,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 input = input.to(device)
                 label = [l.to(device) for l in label]
-                print(f"Before forward")
                 loss, _ = model(input, labels = label, device = device)
-                print(f"Done with forward")
                 loss.backward()
                 optimizer.step()
 
