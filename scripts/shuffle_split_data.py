@@ -1,15 +1,13 @@
 import argparse
 import jsonlines
 import random
-from utility import make_dirs
+from utility import make_dirs, open_file
 import gzip
 import json
-
-            
+      
 def get_data_size(filepath):
-    with gzip.open(filepath, mode = "r") as input_file:
-        reader = jsonlines.Reader(input_file)
-        return sum(1 for _ in reader)     
+	reader = jsonlines.Reader(open_file(filepath, "rt"))
+	return sum(1 for _ in reader)     
 
 def generate_splits(datapath, output_paths, all_samples):
     num_experiments = len(all_samples)
@@ -28,7 +26,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputs", dest="datapath", nargs = 1, help="Primary training file")
     parser.add_argument("--outputs", dest="outputs", nargs="*", help="Output filepaths")
-    parser.add_argument("--sample_size", type=int, dest="sample_size")
+    parser.add_argument("--sample_size", type=int, nargs = "?", dest="sample_size")
     parser.add_argument("--split_ratio", type=float, dest="ratio")
     parser.add_argument("--cd", dest="cd", nargs="?", default = None, help = "If it exists, the cross_domain test file")
     parser.add_argument("--seed", dest="seed", type=int, help = "Seed for random shuffle")
