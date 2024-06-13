@@ -5,6 +5,7 @@ import random
 from utility import make_dirs
 import gzip
 import re
+from utility import parse_labels
 
 def random_subsequence(sequence, minimum_len, maximum_len):
     # Validate min max
@@ -59,6 +60,7 @@ def sample_from_beginning(sequence, minimum_len, maximum_len):
 
     return sequence[:sub_seq_len]
 
+# Todo: fix this
 def sample_from_chapter_beginnings(sequence, minimum_len, maximum_len):
     max_len = min(maximum_len, len(sequence)) 
     min_len = max(minimum_len, 1)
@@ -67,13 +69,31 @@ def sample_from_chapter_beginnings(sequence, minimum_len, maximum_len):
         print(f"Error creating sequence: min: {minimum_len} - max: {maximum_len}")
         return None
     
-    str_rep = "".join(sequence)
+    # Fix this
+    label_lst, _ = zip(*sequence)
+    str_rep = "".join([str(label) for label in label_lst])
     start_idxs = [matched.end() for matched in re.finditer(r"11", str_rep)] + [0]
     
     start_idx = random.choice(start_idxs)
     sub_seq_len = random.randint(min_len, max_len)
     return sequence[start_idx: start_idx + sub_seq_len]
     
+def split_label(label, label_classes):
+    if len(label_classes) > 1:
+        if label < len(label_classes[0]):
+            par_label = label
+            ch_label = 0
+        else:
+            ch_label = label - 2 if len(label_classes[0]) > 2 else label - 1       
+            par_label = label - 2 if len(label_classes[0]) > 2 else label - 1         
+
+        return [par_label, ch_label]
+        
+    else:
+        return [label]
+
+def convert_seq_labels(labels, label_classes):
+    return [split_label(label, label_classes) for label in labels]
 
 if __name__ == "__main__":
 
@@ -86,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--upsampled_label", type=int, default = [], nargs = "*", dest="upsampled_label", help="Label to be upsampled")
     parser.add_argument("--upsample_ratio", type = float, default = 0.0, help = "Ratio of samples that must include unsampled_label")
     parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
-    
+    parser.add_argument("--label_classes", type = parse_labels, help = "Label names")
     parser.add_argument("--seed", dest="seed", type=int)
     args, rest = parser.parse_known_args()
 
@@ -104,6 +124,7 @@ if __name__ == "__main__":
         print(f"max: {args.max_len}")
         print(f"min: {args.min_len}")
         for idx, text in enumerate(input):
+            print(f"IDX: {idx}")
             
             
             curr_book_seq = text["sequence"]
@@ -111,7 +132,7 @@ if __name__ == "__main__":
             zipped_lst = list(zip(curr_book_seq, curr_book_text))
 
             print_labels, print_embeds = zip(*curr_book_seq)
-            print(f"Curr book labels: {print_labels}")
+            # print(f"Curr book labels: {print_labels}")
             # print(f"Curr book seq: {len(curr_book_seq)}, curr_book_text: {len(curr_book_text)}")
             # print(f"Zipped list {len(zipped_lst)}")
             
@@ -127,10 +148,12 @@ if __name__ == "__main__":
                     break
                 subtext, labels, embeds = unpack_sequence_data(result)
                 datapoint["sequence_embeds"] = embeds
-                datapoint["labels"] = labels
+                datapoint["labels"] = convert_seq_labels(labels, args.label_classes)
                 datapoint["original_text"] = subtext
                 datapoint["id"] = text["id"]
-                datapoint["paragraph"] = text["paragraph"] # whether text is paragraph or sentence-tokenized
+                datapoint["paragraph"] = text["paragraph"] # whether text has paragraph markers
+                datapoint["chapter"] = text["chapter"] # whether text has chapter markers
+                datapoint["granularity"] = text["granularity"]
                 data.append(datapoint)
 
             for _ in range(args.samples):
@@ -148,10 +171,13 @@ if __name__ == "__main__":
                     break
                 subtext, labels, embeds = unpack_sequence_data(result)
                 datapoint["sequence_embeds"] = embeds
-                datapoint["labels"] = labels
+                datapoint["labels"] = convert_seq_labels(labels, args.label_classes)
+                # print(f"CONVERTED SEQ LABELS: {datapoint['labels']}")
                 datapoint["original_text"] = subtext
                 datapoint["id"] = text["id"]
                 datapoint["paragraph"] = text["paragraph"]
+                datapoint["chapter"] = text["chapter"]
+                datapoint["granularity"] = text["granularity"]
                 data.append(datapoint)
             
 
