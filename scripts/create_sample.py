@@ -4,40 +4,47 @@ import random
 import os
 from utility import make_dirs, open_file
 import gzip
+import sys
+from tqdm import tqdm
 
 # Read up to sample_size from each file in filepaths
 def read_shuffle_jsonl_file(filepaths, seed, sample_size):
     random.seed(seed)
     data = []
     for file in filepaths:
-        size = get_data_size(file)
-        sample = random.sample(range(size), min(size, sample_size))
-        fp = jsonlines.Reader(open_file(file, "rt"))
+        fp = open_file(file, "rt")
+        # Algorithm R --> todo: substitute for Algorithm L
         for i, text in enumerate(fp):
-            if i in sample:
+            if len(data) < sample_size:
                 data.append(text)
+            else:
+                j = random.randint(0, i)
+                if j < sample_size:
+                    data[j] = text
+        fp.close()
     random.shuffle(data)
     return data
 
 # Read up to sample_size from each file in filepath
-def downsample_jsonl_file(filepaths, sample_size):
-    data = []
-    for file in filepaths:
-        fp = open_file(file, "rt")
-        reader = jsonlines.Reader(fp)
-        for i, text in enumerate(reader):
-            if i < sample_size:
-                data.append(text)
-            else:
-                break
-    return data
+def downsample_file(filepaths, output_path, sample_size):
+    with open(output_path, "wt") as output_file:
+        total = 0
+        for file in filepaths:
+            with open_file(file, "rt") as fp:
+                for line in tqdm(fp, desc = f"Processing lines in {file}"):
+                    if total < sample_size:
+                        output_file.write(line)
+                        total += 1
+                    else:
+                        return
 
 def get_data_size(filepath):
-	reader = jsonlines.Reader(filename = open_file(filepath, "rt"))
-	return sum(1 for _ in reader)  
+    reader = jsonlines.Reader(filename = open_file(filepath, "rb"))
+    reader.close()
+    return sum(1 for _ in reader)  
 
 def write_data(filepath, data, start=None, end=None):
-    with jsonlines.open(filepath, mode="w") as writer:
+    with jsonlines.open(filepath, mode="wt") as writer:
         for item in data[start:end]:
             writer.write(item)
 
@@ -47,20 +54,22 @@ if __name__ == "__main__":
     parser.add_argument("--inputs", dest="inputs", nargs = "*", help="File containing data to be sampled")
     parser.add_argument("--output", dest="output", help="Output file name")
     parser.add_argument("--shuffle", dest="shuffle", type = int, help = "To shuffle or not")
-    parser.add_argument("--data_size", dest="max_data_size", type=int, help = "Max size")
+    parser.add_argument("--sample_size", dest="sample_size", default = sys.maxsize, type=int, help = "Max size")
     parser.add_argument("--seed", dest="seed", type = int, nargs = "*", default = 0)
     args, rest = parser.parse_known_args()
 
     make_dirs(args.output)
 
-    print(f"Shuffling data")
     if args.shuffle:
-        data = read_shuffle_jsonl_file(args.inputs, args.seed, args.max_data_size)
-    else:
-        data = downsample_jsonl_file(args.inputs, args.max_data_size)
-    
-    write_data(args.output, data, end = min(args.max_data_size, len(data)))
+        data = read_shuffle_jsonl_file(args.inputs, args.seed, args.sample_size)
+        write_data(args.output, data, end = min(args.sample_size, len(data)))
 
+    else:
+        print(f"Downsampling file to {args.sample_size}")
+        downsample_file(args.inputs, args.output, args.sample_size)
+
+    
+    
 
 # def float_type(arg):
 #     try:
