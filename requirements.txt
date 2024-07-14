@@ -8,3 +8,4 @@ torch
 matplotlib
 nltk
 sciki-learn
+numpy

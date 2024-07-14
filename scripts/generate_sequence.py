@@ -6,7 +6,7 @@ from create_datapoints import average_embeddings
 from utility import open_file
 from tqdm import tqdm
 
-MIN_PAR_LENGTH = 2
+# MIN_PAR_LENGTH = 2
 
 QUOTE_PUNCTS = [
     # ASCII
@@ -39,11 +39,10 @@ def get_ibe_tag(num, seq_len):
         tag = 2
     else:
         tag = 0
-
     return tag
 
-def validate_paragraph(paragraph):
-    if len(paragraph) < MIN_PAR_LENGTH or not (validate_sentence(paragraph[0]) and validate_sentence(paragraph[-1])):
+def validate_paragraph(paragraph, min_par_len):
+    if len(paragraph) < min_par_len or not (validate_sentence(paragraph[0]) and validate_sentence(paragraph[-1])):
         # print(f"********** Filtered paragraph is: {paragraph} ************")
         return False
     return True
@@ -61,7 +60,6 @@ def convert_to_sequence(chapters, granularity):
     for (_, ch) in chapters:
         chapter_embeds, original_text = ch
         ch_len = len(chapter_embeds)
-
 
         # Loop over paragraphs
         for pnum, (par_embeds, pars) in enumerate(zip(chapter_embeds, original_text)):
@@ -86,7 +84,7 @@ def convert_to_sequence(chapters, granularity):
     return sequence_list
 
 
-def filter_by_paragraph_and_convert_to_sequence(chapters, granularity):
+def filter_by_paragraph_and_convert_to_sequence(chapters, granularity, min_par_len):
     sequence_list = []
     for (_, ch) in chapters:
         paragraphs_list = []
@@ -99,7 +97,7 @@ def filter_by_paragraph_and_convert_to_sequence(chapters, granularity):
             ctag = get_ibe_tag(pnum, ch_len)
             par_embeds = chapter_embeds[pnum]
 
-            if validate_paragraph(par):
+            if validate_paragraph(par, min_par_len):
                 # If paragraph-level sequences:
                 if granularity:
                     # Append chapter tags
@@ -122,7 +120,7 @@ def filter_by_paragraph_and_convert_to_sequence(chapters, granularity):
 
     return sequence_list
 
-def filter_by_sentence_and_convert_to_sequence(chapters, granularity):
+def filter_by_sentence_and_convert_to_sequence(chapters, granularity, min_par_len):
     sequence_list = []
     for (_, ch) in chapters:
         paragraphs_list = []
@@ -138,7 +136,7 @@ def filter_by_sentence_and_convert_to_sequence(chapters, granularity):
             par_embeds = chapter_embeds[pnum]
 
             subparagraph_list = []
-            valid_par = validate_paragraph(par)
+            valid_par = validate_paragraph(par, min_par_len)
 
             if valid_par:
                 # If paragraph-level sequences:
@@ -157,7 +155,7 @@ def filter_by_sentence_and_convert_to_sequence(chapters, granularity):
                         if validate_sentence(sent):
                             subparagraph_list.append((ptag, chtag, sent, sent_embed))
 
-            if valid_par and (granularity != (len(subparagraph_list) >= MIN_PAR_LENGTH)):
+            if valid_par and (granularity != (len(subparagraph_list) >= min_par_len)):
                 paragraphs_list.extend(subparagraph_list)
             elif pnum in [0, ch_len-1]:
                 paragraphs_list = []
@@ -176,7 +174,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="Encoded file")
     parser.add_argument("--output", dest="output", help="Output sequenced file")
+    parser.add_argument("--readable", dest="readable", help = "readable output file")
     parser.add_argument("--granularity", dest = "granularity", type = int, help = "(0) for sentence, (1) for paragraph")
+    parser.add_argument("--cluster", type=int, nargs = "?", help = "Cluster number to filter by")
+    parser.add_argument("--filter_by_stat", dest = "filters", type=float, nargs = "*", help = "Filter by stats")
+    parser.add_argument("--min_par_len", dest = "min_par_len", type = int, default = 2, help = "Min number of sentences in a paragraph")
     parser.add_argument("--seed", dest="seed", type=int)
     args, rest = parser.parse_known_args()
 
@@ -184,20 +186,57 @@ if __name__ == "__main__":
     
     print(f"Generating Sequence Now")
     
-    input = jsonlines.Reader(open_file(args.input, "r"))
-    writer = jsonlines.Writer(gzip.open(args.output, mode="wt"))
-    for idx, doc in enumerate(tqdm(input, desc="Generating Sequences")):  
-        print(f"Doc keys: {doc.keys()}")
-    
-    input.close()
-    writer.close()
-        # sequence_list = filter_by_paragraph_and_convert_to_sequence(list(doc["encoded_segments"].items()), args.granularity)
-        # if sequence_list:
-        #     paragraph_labels, chapter_labels, text, embeddings = zip(*sequence_list)
-        #     sequenced_text = {"id": doc["id"],
-        #                     "granularity" : args.granularity,
-        #                     "paragraph_labels": paragraph_labels,
-        #                     "chapter_labels": chapter_labels,
-        #                     "text": text,
-        #                     "embeddings": embeddings}
-        #     writer.write(sequenced_text)
+    with open_file(args.input, "r") as input, jsonlines.Reader(input) as reader:
+        with gzip.open(args.output, mode="wt") as output, jsonlines.Writer(output) as compressed_writer:
+            with open(args.readable, mode="wt") as readable, jsonlines.Writer(readable) as debug_writer:
+                for idx, doc in enumerate(tqdm(reader, desc="Generating Sequences")):  
+
+                    if not args.cluster or args.cluster == int(doc["cluster"]):
+                        sequence_list = filter_by_paragraph_and_convert_to_sequence(list(doc["encoded_segments"].items()), args.granularity, args.min_par_len)
+                        if sequence_list:
+                            paragraph_labels, chapter_labels, text, embeddings = zip(*sequence_list)
+                            sequenced_text = {
+                                                "id": doc["id"],
+                                                "title": doc["title"],
+                                                "author": doc["author"],
+                                                "stat_labels": doc["stat_labels"],
+                                                "stats": doc["stats"],
+                                                "granularity" : args.granularity,
+                                                "paragraph_labels": paragraph_labels,
+                                                "chapter_labels": chapter_labels,
+                                                "text": text,
+                                                "embeddings": embeddings}
+                            compressed_writer.write(sequenced_text)
+                            del sequenced_text["embeddings"]
+                            del sequenced_text["paragraph_labels"]
+                            del sequenced_text["chapter_labels"]
+                            debug_writer.write(sequenced_text)
+                            # doc.update({
+                            #     "granularity" : args.granularity,
+                            #     "paragraph_labels": paragraph_labels,
+                            #     "chapter_labels": chapter_labels,
+                            #     "text": text,
+                            #     "embeddings": embeddings
+                            # })
+                    # if args.filters:
+                    #     avg_ch, std_ch, avg_par, std_par, avg_dia, std_dia = doc["stats"]
+                    #     if avg_ch > args.filters[0] and avg_par > args.filters[2] and avg_dia < args.filters[4]:
+                    #         sequence_list = filter_by_paragraph_and_convert_to_sequence(list(doc["encoded_segments"].items()), args.granularity, args.min_par_len)
+                    #         if sequence_list:
+                    #             paragraph_labels, chapter_labels, text, embeddings = zip(*sequence_list)
+                    #             sequenced_text = {
+                    #                                 "id": doc["id"],
+                    #                                 "title": doc["title"],
+                    #                                 "author": doc["author"],
+                    #                                 "stat_labels": doc["stat_labels"],
+                    #                                 "stats": doc["stats"],
+                    #                                 "granularity" : args.granularity,
+                    #                                 "paragraph_labels": paragraph_labels,
+                    #                                 "chapter_labels": chapter_labels,
+                    #                                 "text": text,
+                    #                                 "embeddings": embeddings}
+                    #             compressed_writer.write(sequenced_text)
+                    #             del sequenced_text["embeddings"]
+                    #             debug_writer.write(sequenced_text)
+                        
+                    

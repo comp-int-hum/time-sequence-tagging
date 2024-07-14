@@ -8,20 +8,52 @@ import torch.optim as optim
 
 class SequenceTagger(nn.Module):
 
-    def __init__(self, input_size, num_classes, hidden_dim = 512):
+    def __init__(self, input_size, label_classes, label_class_weights = None, hidden_dim = 512, output_layers = 1, lstm_layers = 1):
         # input: (N, L, H_in), output: (N, L, D * H_out) where D = 2 if bidirectional, 1 otherwise
         # input_size must be the same size as the bert embedding
         assert input_size == 768
         super(SequenceTagger, self).__init__()
+        
         self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_dim, num_layers = 1, batch_first = True, bidirectional = True)
-        self.output = nn.Linear(in_features = hidden_dim * 2, out_features = num_classes)
+        self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_dim, num_layers = 2, batch_first = True, bidirectional = True)
+        
+        self.heads = nn.ModuleList()
+        self.classes = label_classes
+        self.class_weights = []
 
-    def forward(self, sentence_embeds, device = "cpu"):
+        for i, labels in enumerate(label_classes):
+            head = nn.Sequential()
+            if labels:
+                self.class_weights.append(label_class_weights[i] if label_class_weights else 1)
+                for layer_num in range(output_layers - 1):
+                    head.add_module(f"Linear Layer {layer_num}", nn.Linear(in_features = hidden_dim * 2, out_features = hidden_dim * 2))
+                    head.add_module(f"Relu {layer_num}", nn.ReLU())
+                head.add_module(f"Output layer", nn.Linear(in_features = hidden_dim * 2, out_features = len(labels)))
+            else:
+                self.class_weights.append(0)
+            self.heads.append(head)
+
+        # Define loss function
+        self.loss_fn = nn.CrossEntropyLoss()
+        
+
+    def forward(self, sentence_embeds, labels = None, device = "cpu"):
         self.lstm.flatten_parameters() # input is (32, SEQ_LEN, 768)
         lstm_out, _ = self.lstm(sentence_embeds) # lstm_out is (batch_size, seq_len, 2 * hidden_dim)
-        outputs = self.output(lstm_out)
-        return outputs # (N, L, num_classes)
+        preds = [output_layer(lstm_out) for output_layer in self.heads]
+        
+        if labels:
+            return (self.get_loss(preds, labels), preds)
+        return preds # (N, L, num_classes)
+    
+    def get_loss(self, preds, labels):
+        loss = 0
+        for pred, label, label_class, class_weight in zip(preds, labels, self.classes, self.class_weights):
+            if label_class and class_weight:
+                reshaped_output, reshaped_label = reshape_output_label(pred, label, len(label_class))
+                loss += class_weight * self.loss_fn(reshaped_output, reshaped_label)
+        return loss
+    
 
 class SequenceTaggerWithBahdanauAttention(nn.Module):
 

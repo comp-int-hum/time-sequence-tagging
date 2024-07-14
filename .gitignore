@@ -7,3 +7,5 @@ data
 *#
 .sconsign*
 .vscode*
+custom.py
+scripts/obs/*

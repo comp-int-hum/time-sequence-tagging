@@ -6,8 +6,8 @@ import gzip
 import json
       
 def get_data_size(filepath):
-    reader = jsonlines.Reader(open_file(filepath, "rt"))
-    return sum(1 for _ in reader)     
+    with open_file(filepath, "rb") as input_file:
+        return sum(1 for _ in input_file)
 
 def generate_splits(datapath, output_paths, folds):
     num_folds = len(folds)

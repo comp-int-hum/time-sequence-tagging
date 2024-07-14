@@ -21,7 +21,6 @@ def get_paragraphs(chapter):
 
 # Split paragraph text into list of sentences
 def get_sentences(paragraph):
-    # return re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', paragraph)
     return nltk.sent_tokenize(paragraph)
 
 def resize_batch(sentences, batch_size):
@@ -42,11 +41,11 @@ def resize_batch(sentences, batch_size):
 
 def encode_chapter(tokenizer, model, ch_name, ch_content, max_toks):
     chapter_embeds = []
-    chapter_paragraphs = get_paragraphs(ch_content)
+    paragraphs_in_chapter = get_paragraphs(ch_content)
     print(f"Chapter name: {ch_name}")
     
-    # Iterate through paragraphs in chapters, grabbing sentence embeddings per paragraph
-    for paragraph in chapter_paragraphs:
+    # Iterate through pa ragraphs in chapters, grabbing sentence embeddings per paragraph
+    for paragraph in paragraphs_in_chapter:
 
         result_batches = resize_batch(sentences=paragraph, batch_size=5)
         par_embeds = []
@@ -59,12 +58,12 @@ def encode_chapter(tokenizer, model, ch_name, ch_content, max_toks):
 
             bert_hidden_states = bert_output["hidden_states"]
             cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be curr_batch_size, hidden_size
-        # assert(len(sents) == cls_token_batch.size(0))
+               # assert(len(sents) == cls_token_batch.size(0))
             s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
             par_embeds.extend([s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings])
         chapter_embeds.append(par_embeds)
     
-    return (chapter_embeds, chapter_paragraphs)
+    return (chapter_embeds, paragraphs_in_chapter)
 
 if __name__ == "__main__":
 
@@ -89,22 +88,38 @@ if __name__ == "__main__":
     model.to(device)
 
     with open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
-        # For line in jsonlines
-        input = jsonlines.Reader(input_file)
-        output = jsonlines.Writer(output_file)
-        enc_file_num = 0
-        for idx, text in enumerate(input):
-            encoded_data = {}
-            encoded_data["id"] = text["id"]
-            encoded_data["original_text"] = text["segments"]
-            chapters = OrderedDict()
-            valid_chapters = True
-            for ch_name, ch_content in text["segments"].items():
-                if not ch_content:
-                    print("NO CONTENT FOUND")
-                    valid_chapters = False
-                    break
-                chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content, args.max_toks)
-            encoded_data["encoded_segments"] = chapters
-            if valid_chapters:
-                output.write(encoded_data)
+        with jsonlines.Reader(input_file) as input, jsonlines.Writer(output_file) as output:
+            for idx, text in enumerate(input):
+                encoded_data = {}
+                encoded_data["id"] = text["id"]
+                encoded_data["original_text"] = text["segments"]
+                chapters = OrderedDict() 
+                valid_chapters = True
+                for ch_name, ch_content in text["segments"].items():
+                    if not ch_content:
+                        print("NO CONTENT FOUND")
+                        valid_chapters = False
+                        break
+                    chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content, args.max_toks)
+                encoded_data["encoded_segments"] = chapters
+                if valid_chapters:
+                    output.write(encoded_data)
+                    
+                
+    with open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
+        with jsonlines.Reader(input_file) as input, jsonlines.Writer(output_file) as output:
+            for idx, text in enumerate(input):
+                encoded_data = {}
+                encoded_data["id"] = text["id"]
+                encoded_data["original_text"] = text["segments"]
+                chapters = OrderedDict() 
+                valid_chapters = True
+                for ch_name, ch_content in text["segments"].items():
+                    if not ch_content:
+                        print("NO CONTENT FOUND")
+                        valid_chapters = False
+                        break
+                    chapters[ch_name] = encode_chapter(tokenizer, model, ch_name, ch_content, args.max_toks)
+                encoded_data["encoded_segments"] = chapters
+                if valid_chapters:
+                    output.write(encoded_data)

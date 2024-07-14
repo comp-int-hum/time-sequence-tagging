@@ -15,6 +15,7 @@ import logging
 from models import SequenceTagger, SequenceTaggerWithBahdanauAttention, GeneralMulticlassSequenceTaggerWithBahdanauAttention
 import pickle
 from collections import defaultdict
+from tqdm import tqdm
 
 def unpack_data(datapoint):
     data = datapoint.pop("embeddings")
@@ -148,17 +149,32 @@ def get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels,
     multiclass_labelled_datapoints = []
     for labels, preds, pred_values, class_label in zip(all_labels, all_preds, all_pred_values, class_labels):
         if class_label:
-            labelled_datapoints = defaultdict(list)
+            
+            # Build confusion dictionary
+            confusion_datapoints = defaultdict(list)
             for true_label, pred, pred_value, meta in zip(labels, preds, pred_values, metadata):
                 true_class_name = class_label[true_label]
                 pred_class_name = class_label[pred]
-                labelled_datapoints[f"True: {true_class_name} - Pred: {pred_class_name}"].append((pred_value, meta))
-
-            for key in labelled_datapoints:
-                labelled_datapoints[key].sort(key=lambda x: x[0])
-                if len(labelled_datapoints[key]) > 10:
-                    labelled_datapoints[key] = labelled_datapoints[key][:5] + labelled_datapoints[key][-5:]
-            multiclass_labelled_datapoints.append(labelled_datapoints)
+                confusion_datapoints[f"True: {true_class_name} - Pred: {pred_class_name}"].append((pred_value, meta))
+                
+            # Sort datapoints in each confusion category and only retain 30 most pertinent
+            for key in confusion_datapoints:
+                confusion_datapoints[key].sort(key=lambda x: x[0])
+                
+                # Remove duplicate datapoints (although prediction values are based on first seen)
+                unique_datapoints = []
+                seen = set()
+                for x in confusion_datapoints[key]:
+                    if x[1] not in seen:
+                        unique_datapoints.append(x)
+                        seen.add(x[1])
+                confusion_datapoints[key] = unique_datapoints
+                
+                # Limit results to bottom 15 and top 15
+                if len(confusion_datapoints[key]) > 30:
+                    confusion_datapoints[key] = confusion_datapoints[key][:15] + confusion_datapoints[key][-15:]
+                    
+            multiclass_labelled_datapoints.append(confusion_datapoints)
     return multiclass_labelled_datapoints
 
 
@@ -274,8 +290,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     
-
-    print(f"**Is training**")
     print(f"PARSED LABELS: ****************************************")
     print(args.classes)
 
@@ -288,7 +302,6 @@ if __name__ == "__main__":
 
     num_epochs = args.epochs
 
-    print(f"NUM EPOCHSSSSSSSSSSSSSSS: {num_epochs}")
     best_accuracy = 0
 
     num_classes = len(args.classes)
@@ -303,7 +316,7 @@ if __name__ == "__main__":
     elif "multiclass_sequence_tagger_with_bahdanau_attention" == args.model:
         model = GeneralMulticlassSequenceTaggerWithBahdanauAttention(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1)
     else:
-        model = SequenceTagger(input_size = args.emb_dim, num_classes = num_classes)
+        model = SequenceTagger(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1)
             
     model.to(device)
 
@@ -332,7 +345,7 @@ if __name__ == "__main__":
         train_losses = []
         dev_losses = []
 
-        for epoch in range(num_epochs):
+        for epoch in tqdm(range(num_epochs), desc = "Epochs"):
             model.train()
             running_train_loss = 0.0
             running_dev_loss = 0.0
@@ -340,7 +353,7 @@ if __name__ == "__main__":
             dev_input_len = 0
             
             # Training Loop
-            for train_input, train_label in zip(*train_batches):
+            for train_input, train_label in tqdm(zip(*train_batches), desc = "Training loop"):
                 optimizer.zero_grad()
                 train_input = train_input.to(device)
                 train_label = [l.to(device) for l in train_label]

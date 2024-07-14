@@ -97,47 +97,46 @@ if __name__ == "__main__":
     print("**Creating datapoints**")
     
     with gzip.open(args.input, "r") as input_file, gzip.open(args.output, mode="wt") as output_file:
-        input = jsonlines.Reader(input_file)
-        writer = jsonlines.Writer(output_file)
-        # For line in jsonlines
-        data = [] # datapoints for current book
-        print(f"max: {args.max_len}")
-        print(f"min: {args.min_len}")
-        for idx, doc in enumerate(input):
-            print(f"IDX: {idx}")
-            
-            zipped_lst = list(zip(
-                doc["paragraph_labels"], 
-                doc["chapter_labels"], 
-                doc["text"], 
-                doc["embeddings"]
-            ))
+        with jsonlines.Reader(input_file) as input, jsonlines.Writer(output_file) as writer:
+            # For line in jsonlines
+            data = [] # datapoints for current book
+            print(f"max: {args.max_len}")
+            print(f"min: {args.min_len}")
+            for idx, doc in enumerate(input):
+                print(f"IDX: {idx}")
+                
+                zipped_lst = list(zip(
+                    doc["paragraph_labels"], 
+                    doc["chapter_labels"], 
+                    doc["text"], 
+                    doc["embeddings"]
+                ))
 
-            for _ in range(args.samples):
-                match args.sample_method:
-                    case "from_beginning":
-                        sample_seq = sample_from_beginning(zipped_lst, args.min_len, args.max_len)
-                    case "from_chapter_beginning":
-                        sample_seq = sample_from_chapter_beginnings(zipped_lst, args.min_len, args.max_len)
-                    case "random_subseq":
-                        sample_seq = random_subsequence(zipped_lst, args.min_len, args.max_len)
-                    case _:
-                        raise ValueError("Did not match sampling method")
-                if not sample_seq:
-                    break
-                paragraph_labels, chapter_labels, text, embeddings = zip(*sample_seq)
-                datapoint = {"id" : doc["id"],
-                             "granularity": doc["granularity"],
-                             "paragraph_labels": paragraph_labels,
-                             "chapter_labels": chapter_labels,
-                             "text": text,
-                             "embeddings": embeddings}
-                data.append(datapoint)
-            
+                for _ in range(args.samples):
+                    match args.sample_method:
+                        case "from_beginning":
+                            sample_seq = sample_from_beginning(zipped_lst, args.min_len, args.max_len)
+                        case "from_chapter_beginning":
+                            sample_seq = sample_from_chapter_beginnings(zipped_lst, args.min_len, args.max_len)
+                        case "random_subseq":
+                            sample_seq = random_subsequence(zipped_lst, args.min_len, args.max_len)
+                        case _:
+                            raise ValueError("Did not match sampling method")
+                    if not sample_seq:
+                        break
+                    paragraph_labels, chapter_labels, text, embeddings = zip(*sample_seq)
+                    datapoint = {"id" : doc["id"],
+                                "granularity": doc["granularity"],
+                                "paragraph_labels": paragraph_labels,
+                                "chapter_labels": chapter_labels,
+                                "text": text,
+                                "embeddings": embeddings}
+                    data.append(datapoint)
+                
 
-        random.shuffle(data)
-        print(f"Total data length : {len(data)}")
+            random.shuffle(data)
+            print(f"Total data length : {len(data)}")
 
-        # Write resulting data
-        for d in data:
-            writer.write(d)
+            # Write resulting data
+            for d in data:
+                writer.write(d)
