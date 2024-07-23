@@ -7,10 +7,20 @@ import gzip
 import sys
 from tqdm import tqdm
 
-def read_shuffle_jsonl_file(filepaths, seed, sample_size):
+def shuffle_file(sources, seed, sample_size):
+    """
+        Shuffle datapoints in source files and use reservoir sampling to reduce size.
+    Args:
+        sources (list): each element is a string filepath
+        seed (int): seed for random shuffling
+        sample_size (int): maximum sample size
+
+    Returns:
+        list: each element is a random line in the file
+    """    
     random.seed(seed)
     data = []
-    for file in filepaths:
+    for file in sources:
         fp = open_file(file, "rt")
         # Algorithm R --> todo: substitute for Algorithm L
         for i, text in tqdm(enumerate(fp), desc = "Reading files in for shuffling"):
@@ -24,11 +34,19 @@ def read_shuffle_jsonl_file(filepaths, seed, sample_size):
     random.shuffle(data)
     return data
 
-# Read up to sample_size from each file in filepath
-def downsample_file(filepaths, output_path, sample_size):
+# Downsample data to sample_size, collating from different filepaths (priority is given to items earlier in filepaths list)
+def downsample_file(sources, output_path, sample_size):
+    """Downsample data to sample_size, collating data from different sources with priority given to items 
+       earlier in the sources list.
+
+    Args:
+        sources (list): where each element is a str filepath
+        output_path (str): output_path as a string
+        sample_size (int): maximum number of elements to retain during downsampling process
+    """    
     with open(output_path, "wt") as output_file:
         total = 0
-        for file in filepaths:
+        for file in sources:
             with open_file(file, "rt") as fp:
                 for line in tqdm(fp, desc = f"Processing lines in {file}"):
                     if total < sample_size:
@@ -42,7 +60,7 @@ def get_data_size(filepath):
         return sum(1 for _ in input_file)
 
 def write_data(filepath, data, start=None, end=None):
-    with jsonlines.open(filepath, mode="w") as writer:
+    with open(filepath, mode="w") as writer:
         for item in tqdm(data[start:end], desc="Writing out data in create sample"):
             writer.write(item)
 
@@ -60,7 +78,7 @@ if __name__ == "__main__":
 
     if args.shuffle:
         print(f"Seed: {args.seed}")
-        data = read_shuffle_jsonl_file(args.inputs, args.seed, args.sample_size)
+        data = shuffle_file(args.inputs, args.seed, args.sample_size)
         write_data(args.output, data, end = min(args.sample_size, len(data)))
 
     else:

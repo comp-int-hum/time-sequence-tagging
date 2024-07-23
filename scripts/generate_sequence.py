@@ -26,16 +26,22 @@ QUOTE_PUNCTS = [
 ]
 
 
-# Returns (0) for inside
-#         (1) for beginning / boundary
-#         (2) for ending (and for one unit sequences)
-def get_ibe_tag(num, seq_len):
+def get_ibe_tag(ele_num, seq_len):
+    """Get inside, beginning, ending tag for a paragraph or chapter.
+
+    Args:
+        num (int): The index of the element in the sequence
+        seq_len (int): The total length of the sequence
+
+    Returns:
+        int: (0) for inside, (1) for beginning / boundary, (2) for ending
+    """    
     tag = 0
     # if (seq_len == 1):
     #     tag = 3
-    if num == 0:
+    if ele_num == 0:
         tag = 1
-    elif num == (seq_len - 1):
+    elif ele_num == (seq_len - 1):
         tag = 2
     else:
         tag = 0
@@ -170,6 +176,60 @@ def filter_by_sentence_and_convert_to_sequence(chapters, granularity, min_par_le
     #     assert chtags.count(1) == chtags.count(2)
     return sequence_list
 
+
+def filter_by_paragraph_and_flatten(chapters, granularity, min_par_len):
+    """Filter out dialogue on a paragraph level and flatten the embeddings and text of the document.
+
+    Args:
+        chapters (list): where each element is a dict representing a chapter
+        granularity (int): where 0 represents a sentence and 1 a paragraph
+        min_par_len (int): minimum number of sentences for a paragraph for it to be included
+
+    Returns:
+        list: where each element is a list of tuples representing the sentences (or entirety) of a paragraph:
+            - ptag: 0 for in the middle of a paragraph, 1 for at the beginning, 2 for at the end
+            - chtag: 0 for in the middle of a chapter, 1 for at the beginning, 2 for at the end
+            - text: a list of sentences representing the paragraph
+            - embed: a list of embeddings for each sent (or an average of the embeddings in a paragraph)
+            
+    """    
+    sequence_list = []
+    for ch in chapters:
+        paragraphs_list = []
+        paragraphed_embeds = ch["sentence_embeddings"]
+        paragraphed_text = ch["sentences"]
+        
+        ch_len = len(paragraphed_text)
+
+        # Loop over paragraphs
+        for pnum, (par_embeds, par_text) in enumerate(zip(paragraphed_embeds, paragraphed_text)):
+
+            ctag = get_ibe_tag(pnum, ch_len)
+
+            if validate_paragraph(par_text, min_par_len):
+                # If paragraph-level sequences:
+                if granularity:
+                    # Append chapter tags
+                    paragraphs_list.append((None, ctag, par_text, average_embeddings(par_embeds)))
+                else:
+                    # Loop over sentences and tag for beginning and endings of paragraphs
+                    par_len = len(par_text)
+                    for snum, (sent_embed, sent_text) in enumerate(zip(par_embeds, par_text)):
+                        # Get sentence-level tag for paragraphs
+                        ptag = get_ibe_tag(snum, par_len)
+                        chtag = ptag if ctag == ptag else 0
+
+                        # Append id to seq_list and original sent to original_list
+                        paragraphs_list.append((ptag, chtag, sent_text, sent_embed))
+            elif pnum in [0, ch_len-1]:
+                paragraphs_list = []
+                break
+        
+        sequence_list.extend(paragraphs_list)
+
+    return sequence_list
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="Encoded file")
@@ -192,32 +252,23 @@ if __name__ == "__main__":
                 for idx, doc in enumerate(tqdm(reader, desc="Generating Sequences")):  
 
                     if not args.cluster or args.cluster == int(doc["cluster"]):
-                        sequence_list = filter_by_paragraph_and_convert_to_sequence(list(doc["encoded_segments"].items()), args.granularity, args.min_par_len)
+                        sequence_list = filter_by_paragraph_and_flatten(doc["chapters"], args.granularity, args.min_par_len)
                         if sequence_list:
                             paragraph_labels, chapter_labels, text, embeddings = zip(*sequence_list)
                             sequenced_text = {
-                                                "id": doc["id"],
-                                                "title": doc["title"],
-                                                "author": doc["author"],
-                                                "stat_labels": doc["stat_labels"],
-                                                "stats": doc["stats"],
-                                                "granularity" : args.granularity,
-                                                "paragraph_labels": paragraph_labels,
-                                                "chapter_labels": chapter_labels,
-                                                "text": text,
-                                                "embeddings": embeddings}
+								"title": doc["title"],
+								"author": doc["author"],
+								"year": doc["year"],
+								"id": doc["id"],
+								"granularity": args.granularity,
+								"paragraph_labels": paragraph_labels,
+								"chapter_labels": chapter_labels,
+								"text": text,
+								"embeddings": embeddings
+							}
+                            
                             compressed_writer.write(sequenced_text)
-                            del sequenced_text["embeddings"]
-                            del sequenced_text["paragraph_labels"]
-                            del sequenced_text["chapter_labels"]
-                            debug_writer.write(sequenced_text)
-                            # doc.update({
-                            #     "granularity" : args.granularity,
-                            #     "paragraph_labels": paragraph_labels,
-                            #     "chapter_labels": chapter_labels,
-                            #     "text": text,
-                            #     "embeddings": embeddings
-                            # })
+
                     # if args.filters:
                     #     avg_ch, std_ch, avg_par, std_par, avg_dia, std_dia = doc["stats"]
                     #     if avg_ch > args.filters[0] and avg_par > args.filters[2] and avg_dia < args.filters[4]:

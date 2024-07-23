@@ -7,5 +7,8 @@ jsonlines
 torch
 matplotlib
 nltk
-sciki-learn
+scikit-learn
 numpy
+tqdm
+steamroller
+texttable

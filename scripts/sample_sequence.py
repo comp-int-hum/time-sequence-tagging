@@ -8,13 +8,23 @@ import re
 from utility import parse_labels
 
 def random_subsequence(sequence, minimum_len, maximum_len):
+    """Sample a random subsequence between minimum_len and maximum_len from the overall sequence.
+
+    Args:
+        sequence (list): _description_
+        minimum_len (int): _description_
+        maximum_len (int): _description_
+
+    Returns:
+        list: subsequence
+    """    
     # Validate min max
     max_len = min(maximum_len, len(sequence)) 
     min_len = max(minimum_len, 1)
 
     if min_len > max_len:
         print(f"Error creating sequence: min: {minimum_len} - max: {maximum_len}")
-        return None
+        return []
 
     # Generate random seq_len and start
     sub_seq_len = random.randint(min_len, max_len)
@@ -29,7 +39,7 @@ def random_biased_subsequence(sequence,  matched_idxs, min_len, max_len):
     min_len = max(min_len, 1)
 
     if min_len > max_len or not matched_idxs:
-        return None
+        return []
     
     sub_seq_len = random.randint(min_len, max_len)
     chosen_match = random.choice(matched_idxs)
@@ -53,7 +63,7 @@ def sample_from_beginning(sequence, minimum_len, maximum_len):
 
     if min_len > max_len:
         print(f"Error creating sequence: min: {minimum_len} - max: {maximum_len}")
-        return None
+        return []
 
     # Generate random seq_len
     sub_seq_len = random.randint(min_len, max_len)

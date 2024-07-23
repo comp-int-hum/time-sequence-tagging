@@ -77,7 +77,7 @@ env = Environment(
             action="python scripts/extract_from_gutenberg.py --base_dir ${LOCAL_TEST} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
         ),
         "ProcessPG" : Builder(
-            action="python scripts/extract_from_gutenberg.py --base_dir ${PG_DATAPATH} --catalog ${SOURCES} --output ${TARGETS} --local ${LOCAL}",
+            action="python scripts/extract_from_gutenberg.py --base_dir ${PG_DATAPATH} --catalog ${SOURCES} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --local ${LOCAL}",
         ),
         "ProcessWW" : Builder(
             action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",
@@ -97,7 +97,7 @@ env = Environment(
         "GenerateSequence": Builder(
             action="python scripts/generate_sequence.py --input ${SOURCES} --output ${TARGETS[0]} --readable ${TARGETS[1]} --granularity ${GRANULARITY} --cluster ${CLUSTER} --seed ${FOLDS}"
         ),
-        "ShuffleAndSplitData": Builder(
+        "SplitData": Builder(
             action="python scripts/split_data.py --inputs ${SOURCES} --outputs ${TARGETS} --sample_size ${SPLIT_SIZE} --split_ratio ${SPLIT_RATIOS} --cd ${CROSS_DOMAIN} --seed ${FOLDS}"
         ),
         "CreateClassifierDatapoints": Builder(
@@ -127,55 +127,131 @@ env = Environment(
     }
 )
 
-# Get data
+# Extract documents from Project Gutenberg
 if env.get("LOCAL_DATA", None):
     print("Debugging run")
     pg_local = env.ProcessPGLocal(source = env["PG_CATALOG"] ,
                                   target = ["work/gutenberg.jsonl", "work/test.txt"])
 else:
     if env.get("PG_FILE", None):
-        pg_sample = env.File(env["PG_FILE"])
+        extracted_docs = env.File(env["PG_FILE"])
     else:
         pg_data = env.ProcessPG(source = env["PG_CATALOG"] ,
-                                target = "work/data/gutenberg.jsonl")
+                                target = ["work/data/gutenberg.jsonl", "work/data/gutenberg_catalog.txt"])
+        extracted_docs, extracted_catalog = pg_data
         # Downsample Step
-        pg_sample = env.CreateSample(source = [pg_data],
+        pg_sample = env.CreateSample(source = [extracted_docs],
                                      target = ["work/data/pg_sample.jsonl"],
                                      SAMPLE_SIZE = 100000,
                                      SHUFFLE = 1)
 
-# # Encode Step
-# if env.get("ENC_FILE", None):
-#     pg_enc = env.File(env["ENC_FILE"])
-# else:
-#     pg_enc = env.EncodeData(source = [pg_sample],
-#                             target = ["work/data/pg_encoded.json.gz"],
-#                             GRID_GPU_COUNT=1,
-#                             GRID_ACCOUNT="tlippin1_gpu",
-#                             GRID_QUEUE="a100",
-#                             GRID_TIME="12:00:00")
+# Encode documents and create data lake
+if env.get("ENC_FILE", None):
+    pg_enc = env.File(env["ENC_FILE"])
+else:
+    pg_enc = env.EncodeData(source = [pg_sample],
+                            target = ["work/data/pg_encoded.jsonl.gz"],
+                            GRID_GPU_COUNT=1,
+                            GRID_ACCOUNT="tlippin1_gpu",
+                            GRID_QUEUE="a100",
+                            GRID_TIME="12:00:00")
 
-# if env.get("TOY_FILE"):
-#     print("Switched to toy file")
-#     pg_enc = env.File(env["TOY_FILE"])
-# else:
-#     pg_enc = env.CreateSample(source = [pg_enc],
-#                                 target = ["work/data/toy_1000_encoded.json.gz"],
-#                                 SHUFFLE = 0,
-#                                 SAMPLE_SIZE = 1000)
+# Switch to toy file of encoded data if toy file exists
+if env.get("TOY_FILE"):
+    print("Switched to toy file")
+    pg_enc = env.File(env["TOY_FILE"])
+else:
+    pg_enc = env.CreateSample(source = [pg_enc],
+                                target = ["work/data/toy_1000_encoded.json.gz"],
+                                SHUFFLE = 0,
+                                SAMPLE_SIZE = 1000)
 
-# exp_type = env["EXPERIMENT_TYPE"]
-# output_train_paths = []
-# output_test_paths = []
+# Create splits of the data (train, dev, test)
+exp_type = env["EXPERIMENT_TYPE"]
 
-# for i in range(env["FOLDS"]):
-#     output_train_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_train.jsonl.gz")
-#     output_test_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_dev.jsonl.gz")
-#     output_test_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_test.jsonl.gz")
+train_paths, dev_paths, test_paths = [], [], []
 
-# output_train_paths.extend(output_test_paths)
-# output_paths = output_train_paths
-# print(f"Len of output paths: {len(output_paths)}")
+for i in range(env["FOLDS"]):
+    train_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_train.jsonl.gz")
+    dev_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_dev.jsonl.gz")
+    test_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_test.jsonl.gz")
+
+output_paths = train_paths + dev_paths + test_paths
+
+
+# Cluster and filter
+compressed_collection, sample_clusters, cluster_graph = env.ClusterCollection(source = [pg_enc],
+                                                                              target = [f"work/data/encoded_clustered_collection.jsonl.gz", f"work/data/sample_clusters.json", f"work/data/cluster_graph.png"],
+                                                                              PG_COLLECTION = extracted_docs)
+    
+
+# Flatten data to sequence representation
+seq_file = env.GenerateSequence(source = compressed_collection,
+                                target = [f"work/data/flattened_encodings.jsonl.gz", f"work/data/readable-sequence.jsonl"],
+                                GRANULARITY = 0,
+                                CLUSTER = None)
+
+experiment_results = []
+for experiment in env["EXPERIMENTS"]:
+    tagging_method, granularity, class_labels = experiment
+
+    train_test_files = env.SplitData(source = [seq_file], 
+                                     target = [output_paths])
+    
+    for n in range(env["FOLDS"]):
+        for min_seq, max_seq in env["SEQ_LENGTHS"]:
+            train_set = env.SampleSequence(source = train_test_files[n],
+                                           target = f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/data/trial_{n}/{min_seq}-{max_seq}/train.jsonl",
+                                           SAMPLES = 20,
+                                           MIN_SEQ = min_seq,
+                                           MAX_SEQ = max_seq,
+                                           SAMPLE_METHOD = "random_subseq")
+            dev_set = env.SampleSequence(source = train_test_files[env["FOLDS"]+n],
+                                        target = f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/data/trial_{n}/{min_seq}-{max_seq}/dev.jsonl",
+                                        SAMPLES = 5,
+                                        MIN_SEQ = min_seq,
+                                        MAX_SEQ = max_seq,
+                                        SAMPLE_METHOD = "random_subseq")
+            # Create full-text samples
+            test_set = env.SampleSequence(source = train_test_files[env["FOLDS"]*2+n],
+                                            target = f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/data/trial_{n}/{min_seq}-{max_seq}/test.jsonl",
+                                            SAMPLES = 5,
+                                            MIN_SEQ = min_seq,
+                                            MAX_SEQ = max_seq,
+                                            SAMPLE_METHOD = "random_subseq")
+            
+            for model_name in env["MODEL_NAMES"]:
+                result = env.TrainSequenceModel(source = [train_set, dev_set, test_set],
+                                                        target = f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/{min_seq}-{max_seq}/{model_name}/trial_{n}/results.pickle", 
+                                                        SAVE_NAME=f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/{min_seq}-{max_seq}/{model_name}/trial_{n}/best_model/{min_seq}-{max_seq}-model.pt",
+                                                        VISUALIZATIONS=f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/{min_seq}-{max_seq}/{model_name}/trial_{n}/visualizations",
+                                                        MODEL = model_name,
+                                                        EMB_DIM = 768,
+                                                        BATCH=32,
+                                                        CLASSES = class_labels,
+                                                        OUTPUT_LAYERS = 2)
+                experiment_results.append(result)
+                report = env.GenerateReport(source = [errors],
+                                            target = f"work/experiments/{exp_type}/{tagging_method}/{'-'.join(experiment)}/{min_seq}-{max_seq}/{model_name}/trial_{n}/result/{min_seq}-{max_seq}-errors.txt",
+                                            MODEL_TYPE = model_name,
+                                            PG_PATH = env["PG_FILE"])
+                
+report = env.CollateResults(source = experiment_results,
+                            target = f"work/experiments/{exp_type}/final_report")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # results = []
 # if "classifier" in exp_type:

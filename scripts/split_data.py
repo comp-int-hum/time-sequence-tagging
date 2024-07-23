@@ -23,8 +23,6 @@ def generate_splits(datapath, output_paths, folds):
                     output_paths[2 * num_folds + num].write(json.dumps(text) + "\n")
 
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputs", dest="datapath", nargs = 1, help="Primary training file")
@@ -56,7 +54,7 @@ if __name__ == "__main__":
 
     # Get train and dev sizes
     tr_size = int(args.ratio[0] * source_sample_size)
-    dev_size = int(sum(args.ratio[0:2]) * source_sample_size)
+    tr_dev_size = int(sum(args.ratio[0:2]) * source_sample_size)
     
     # Build source document samples
     folds = []
@@ -64,8 +62,8 @@ if __name__ == "__main__":
     for i in range(num_folds):
         curr_sample = random.sample(range(source_size), source_sample_size)
         train = set(curr_sample[:tr_size])
-        dev = set(curr_sample[tr_size : dev_size]) if not args.cd else []
-        test = set(curr_sample[dev_size:]) if not args.cd else []
+        dev = set(curr_sample[tr_size : tr_dev_size]) if not args.cd else []
+        test = set(curr_sample[tr_dev_size:]) if not args.cd else []
         folds.append((train, dev, test))
 
     # Write to output source document splits
@@ -77,14 +75,14 @@ if __name__ == "__main__":
         # Calculate sample sizes for cross domain document
         cross_size = get_data_size(args.cd)
         cross_sample_size = min((1-args.ratio[0]) * source_sample_size, cross_size) # set to be at most the same as test size for non-cross-domain
-        dev_size = int((args.ratio[1] / sum(args.ratio[1:3]) * cross_sample_size))
+        tr_dev_size = int((args.ratio[1] / sum(args.ratio[1:3]) * cross_sample_size))
         # Build cross domain document samples
         cross_samples = []
         for i in range(num_folds):
             curr_sample = random.sample(range(cross_size), cross_sample_size)
             train = []
-            dev = set(curr_sample[:dev_size])
-            test = set(curr_sample[dev_size:])
+            dev = set(curr_sample[:tr_dev_size])
+            test = set(curr_sample[tr_dev_size:])
             cross_samples.append((train, dev, test))
 
         # Write to output cross domain document splits

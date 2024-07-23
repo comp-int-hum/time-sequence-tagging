@@ -10,6 +10,8 @@ import json
 from utility import make_dirs
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import texttable as tt
+import nltk
 
 PG_TAGS = ["P", "PA", "PB", "PC", "PD", "PE", "PF", "PG", "PH", "PJ", "PK", "PL", "PM", "PN", "PQ", "PR", "PS", "PT"]
 
@@ -27,6 +29,13 @@ def get_gb_html_dir(base_dir, text_num):
 def clean_string(str):
     str = str.replace('\r', '').replace('\n', '')
     return re.sub(r'\s+', ' ', str).strip()
+
+def is_poetry(title):
+    title = title.lower()
+    for word in ["poem", "poetry", "poesie", "ballad"]:
+        if word in title:
+            return True
+    return False
 
 def is_content_table(table):
     if table.previous_sibling and table.previous_sibling.string:
@@ -51,6 +60,10 @@ def contains_invalid_words(string):
 
 def valid_volume_header(string):
     return string.strip() and not contains_invalid_words(string)
+
+def get_sentences(paragraph):
+    return nltk.sent_tokenize(paragraph)
+
 ## ______________ END HELPER FUNCTIONS ______________________
 
 
@@ -154,9 +167,9 @@ def extract_volumes_from_ptoc(soup, href_map):
         # Get preceding and proceeding hrefs and extract chapter using them
         first_href = toc_hrefs[i]
         second_href = toc_hrefs[i+1] if i+1 < len(toc_hrefs) else None
-        chapter_content = extract_paragraphs_from_ptoc(soup, first_href, second_href)
+        chapter_paragraphs, chapter_sentences = extract_paragraphs_from_ptoc(soup, first_href, second_href)
         
-        if not chapter_content: 
+        if not chapter_paragraphs: 
             # If it is not a chapter, it is a link to a new volume
             
             # Append previous volume
@@ -178,7 +191,8 @@ def extract_volumes_from_ptoc(soup, href_map):
             if "footnotes" not in chapter_name.lower():
                 chapters_list.append({
                     "chapter_name": chapter_name,
-                    "content": chapter_content
+                    "paragraphs": chapter_paragraphs,
+                    "sentences": chapter_sentences
                 })
     
     # Append final volume
@@ -200,7 +214,9 @@ def extract_paragraphs_from_ptoc(soup, first_href, second_href):
         second_href (_type_): second href element
 
     Returns:
-        dict: dictionary representing a chapter
+        tuple:
+            - list: one list of paragraphs, where each paragraph is a string
+            - list: lists of sentences, where each list represents a paragraph
     """      
     start = soup.find("a", id=first_href) or soup.find("a", attrs={"name":first_href})
     end = (soup.find("a", id=second_href) or soup.find("a", attrs = {"name": second_href})) if second_href else None
@@ -219,7 +235,7 @@ def extract_paragraphs_from_ptoc(soup, first_href, second_href):
                 paragraphs.append(par)
         curr = curr.find_next()
     
-    return paragraphs if paragraphs else []
+    return (paragraphs, [get_sentences(par) for par in paragraphs])
 
 def extract_volumes_from_tables(soup, tables):
     """Attempt to extract volumes/text from Gutenberg html using table-based structure
@@ -274,10 +290,10 @@ def extract_chapters_from_tables(soup, href_map):
         second_href = toc_hrefs[i+1] if i+1 < len(toc_hrefs) else None
         
         # Extract chapters based on preceding / proceeding hrefs
-        chapter_content = extract_paragraphs_from_ptoc(soup, first_href, second_href)
+        chapter_paragraphs, chapter_sentences = extract_paragraphs_from_ptoc(soup, first_href, second_href)
         
         # Check if chapter content was found
-        if not chapter_content:
+        if not chapter_paragraphs:
             # If not a chapter, handle unexpected behavior (TODO: ensure this is correct behavior)
             return None
         else:
@@ -288,14 +304,15 @@ def extract_chapters_from_tables(soup, href_map):
                 chapters_list.append(
                     {
                         "chapter_name": chapter_name,
-                        "content": chapter_content
+                        "paragraphs": chapter_paragraphs,
+                        "sentences": chapter_sentences
                     }
                 )
 
     return chapters_list
 
 
-def parse_document(file_path, metadata):
+def parse_volumes_into_documents(file_path, metadata):
     """Given filepath and metadata, attempt to parse a Gutenberg document into volumes, splitting texts as needed
        into multiple volumes.
 
@@ -314,11 +331,11 @@ def parse_document(file_path, metadata):
     with open(file_path, "rb") as file:
         soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
         volumes = process_document(soup)
-        # print(f"Volumes: {volumes}")
         for volume in volumes:
             document = metadata.copy()
             title = volume["title"]
             print(f"Title: {title}")
+            # Append extracted title to metadata title for each volume
             if title.strip():
                 document["title"] += " -- " + title
             
@@ -326,7 +343,6 @@ def parse_document(file_path, metadata):
                 document["chapters"] = volume["chapters"]
                 processed_docs.append(document)
     return processed_docs
-
 
 
 def process_files_from_corpus_directory(catalog_file, base_dir):
@@ -352,12 +368,12 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
             has_lit_tag, metadata = get_metadata_from_csv(row)
             
             # If has literature tag and a title
-            if has_lit_tag and row["Title"].strip():
+            if has_lit_tag and row["Title"].strip() and not is_poetry(row["Title"]):
                 
                 # Get gutenberg id and extract volumes from text
                 gutenberg_id = row["Text#"]
                 file_path = get_gb_html_dir(base_dir, gutenberg_id)
-                extracted_volumes = parse_document(file_path, metadata)
+                extracted_volumes = parse_volumes_into_documents(file_path, metadata)
                 
                 # If volumes were successfully extracted
                 if extracted_volumes:
@@ -366,8 +382,7 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
                     # Count tags
                     for t in metadata["tags"]:
                         tag_counts[t] += 1
-            if i > 300:
-                break
+                        
     return data, tag_counts
 
 # def process_files_from_local_directory(base_dir):
@@ -387,6 +402,7 @@ if __name__ == "__main__":
     parser.add_argument("--base_dir", dest="base_dir", help="Base directory to start searching")
     parser.add_argument("--catalog", dest="catalog_file", help="csv file")
     parser.add_argument("--output", dest="output", help="Name of output files")
+    parser.add_argument("--output_catalog", dest="output_catalog", help = "Output catalog and metadata")
     parser.add_argument("--local", dest="local", nargs = "*", help="local files")
     args, rest = parser.parse_known_args()
 
@@ -404,12 +420,27 @@ if __name__ == "__main__":
 
     for d in data:
         assert(d != {})
-
-    print(f"Actual docs: {len(data)}")
-    # with jsonlines.open(args.outputs[0], "w") as writer:
-    #     writer.write_all(data)
+    
+    table_obj = tt.Texttable()
+    table_obj.set_cols_width([30, 20, 10, 10])
+    table_obj.set_cols_align(["l", "l", "l", "l"])
+    table_obj.header(["Title", "Author", "Year", "Gutenberg ID"])
+    
+    unique_ids = set()
     with open(args.output, "w") as output_file:
-        json.dump(data, output_file)
+        for doc in data:
+            output_file.write(json.dumps(doc) + "\n")
+            table_obj.add_row([doc["title"], doc["author"], doc["year"], doc["id"]])
+            unique_ids.add(doc["id"])
+            
+    
+    with open(args.output_catalog, "w") as output_catalog_file:
+        output_catalog_file.write(f"Number of total documents found: {len(data)} \n")
+        output_catalog_file.write(f"Nummber of unique documents found: {len(unique_ids)} \n")
+        output_catalog_file.write(table_obj.draw())
+        
+    # with open(args.output, "w") as output_file:
+    #     json.dump(data, output_file)
 
     if tag_counts:
         tag_categories = list(tag_counts.keys())
@@ -420,3 +451,28 @@ if __name__ == "__main__":
         plt.show()
 
 
+# def parse_volumes_into_document(file_path, metadata):
+#     """Given filepath and metadata, attempt to parse a Gutenberg document into volumes, splitting texts as needed
+#        into multiple volumes.
+
+#     Args:
+#         file_path (str): Gutenberg document filepath
+#         metadata (dict): Metadata information (title, author, year, etc.)
+
+#     Returns:
+#         list: list of volumes that were extracted from the document (usually one)
+#     """    
+#     if not os.path.isfile(file_path):
+#         print(f"File path problem with {file_path}")
+#         return []
+    
+#     processed_docs = []
+#     with open(file_path, "rb") as file:
+#         soup = BeautifulSoup(file, "html.parser", from_encoding="UTF-8")
+#         volumes = process_document(soup)
+#         document = {
+#             **metadata,
+#             "chapters": [chapter for volume in volumes for chapter in volume["chapters"]]
+#         }
+#         processed_docs.append(document)
+#     return processed_docs
