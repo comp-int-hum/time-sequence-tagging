@@ -59,27 +59,38 @@ def validate_sentence(sentence):
         return False
     return True
 
-# Sequence list: List of Tuple: (tag, embed)
-# Original list: List of paragraphs/sentences
-def convert_to_sequence(chapters, granularity):
+def flatten_to_sequence(chapters, granularity):
+    """Flatten embedded data structure into sequences. (Does not perform filtering.)
+
+    Args:
+        chapters (list): where each element is a dictionary representing one chapter in a text
+        granularity (int): where 0 represents a sentence and 1 a paragraph
+
+    Returns:
+        list: where each element is a list of tuples representing the sentences (or entirety) of a paragraph:
+            - ptag: 0 for in the middle of a paragraph, 1 for at the beginning, 2 for at the end
+            - chtag: 0 for in the middle of a chapter, 1 for at the beginning, 2 for at the end
+            - text: a list of sentences representing the paragraph
+            - embed: a list of embeddings for each sent (or an average of the embeddings in a paragraph)
+    """    
     sequence_list = []
-    for (_, ch) in chapters:
-        chapter_embeds, original_text = ch
-        ch_len = len(chapter_embeds)
+    for ch in chapters:
+        paragraphed_embeds = ch["sentence_embeddings"]
+        paragraphed_text = ch["sentences"]
+        ch_len = len(paragraphed_text)
 
         # Loop over paragraphs
-        for pnum, (par_embeds, pars) in enumerate(zip(chapter_embeds, original_text)):
+        for pnum, (par_embeds, par_text) in enumerate(zip(paragraphed_embeds, paragraphed_text)):
             ctag = get_ibe_tag(pnum, ch_len)
-            par_embeds = chapter_embeds[pnum]
 
             # If paragraph-level sequences:
             if granularity:
                 # Append chapter tags
-                sequence_list.append((None, ctag, pars, average_embeddings(par_embeds)))
+                sequence_list.append((None, ctag, par_text, average_embeddings(par_embeds)))
             else:
                 # Loop over sentences and tag for beginning and endings of paragraphs
                 par_len = len(par_embeds)
-                for snum, (sent_embed, sent) in enumerate(zip(par_embeds, pars)):
+                for snum, (sent_embed, sent) in enumerate(zip(par_embeds, par_text)):
                     # Get sentence-level tag for paragraphs
                     ptag = get_ibe_tag(snum, par_len)
                     chtag = ptag if ctag == ptag else 0
@@ -87,93 +98,6 @@ def convert_to_sequence(chapters, granularity):
                     # Append id to seq_list and original sent to original_list
                     sequence_list.append((ptag, chtag, sent, sent_embed))
         
-    return sequence_list
-
-
-def filter_by_paragraph_and_convert_to_sequence(chapters, granularity, min_par_len):
-    sequence_list = []
-    for (_, ch) in chapters:
-        paragraphs_list = []
-        chapter_embeds, original_text = ch
-        ch_len = len(chapter_embeds)
-
-        # Loop over paragraphs
-        for pnum, (par_embeds, par) in enumerate(zip(chapter_embeds, original_text)):
-
-            ctag = get_ibe_tag(pnum, ch_len)
-            par_embeds = chapter_embeds[pnum]
-
-            if validate_paragraph(par, min_par_len):
-                # If paragraph-level sequences:
-                if granularity:
-                    # Append chapter tags
-                    paragraphs_list.append((None, ctag, par, average_embeddings(par_embeds)))
-                else:
-                    # Loop over sentences and tag for beginning and endings of paragraphs
-                    par_len = len(par_embeds)
-                    for snum, (sent_embed, sent) in enumerate(zip(par_embeds, par)):
-                        # Get sentence-level tag for paragraphs
-                        ptag = get_ibe_tag(snum, par_len)
-                        chtag = ptag if ctag == ptag else 0
-
-                        # Append id to seq_list and original sent to original_list
-                        paragraphs_list.append((ptag, chtag, sent, sent_embed))
-            elif pnum in [0, ch_len-1]:
-                paragraphs_list = []
-                break
-        
-        sequence_list.extend(paragraphs_list)
-
-    return sequence_list
-
-def filter_by_sentence_and_convert_to_sequence(chapters, granularity, min_par_len):
-    sequence_list = []
-    for (_, ch) in chapters:
-        paragraphs_list = []
-        chapter_embeds, original_text = ch
-        ch_len = len(chapter_embeds)
-
-        if ch_len < 3:
-            continue
-        # Loop over paragraphs
-        for pnum, (par_embeds, par) in enumerate(zip(chapter_embeds, original_text)):
-
-            ctag = get_ibe_tag(pnum, ch_len)
-            par_embeds = chapter_embeds[pnum]
-
-            subparagraph_list = []
-            valid_par = validate_paragraph(par, min_par_len)
-
-            if valid_par:
-                # If paragraph-level sequences:
-                if granularity:
-                    # Append chapter tags
-                    subparagraph_list.append((None, ctag, par, average_embeddings(par_embeds)))
-                else:
-                    # Loop over sentences and tag for beginning and endings of paragraphs
-                    par_len = len(par_embeds)
-                    for snum, (sent_embed, sent) in enumerate(zip(par_embeds, par)):
-                        # Get sentence-level tag for paragraphs
-                        ptag = get_ibe_tag(snum, par_len)
-                        chtag = ptag if ctag == ptag else 0
-
-                        # Append id to seq_list and original sent to original_list
-                        if validate_sentence(sent):
-                            subparagraph_list.append((ptag, chtag, sent, sent_embed))
-
-            if valid_par and (granularity != (len(subparagraph_list) >= min_par_len)):
-                paragraphs_list.extend(subparagraph_list)
-            elif pnum in [0, ch_len-1]:
-                paragraphs_list = []
-                break
-        
-        sequence_list.extend(paragraphs_list)
-
-    # if sequence_list:
-    #     ptags, chtags, _, _ = zip(*sequence_list)
-    #     assert ptags.count(1) == ptags.count(2)
-    #     print(f"Start chapter tags: {chtags.count(1)} -- End chapter tags: {chtags.count(2)}")
-    #     assert chtags.count(1) == chtags.count(2)
     return sequence_list
 
 
@@ -195,7 +119,7 @@ def filter_by_paragraph_and_flatten(chapters, granularity, min_par_len):
     """    
     sequence_list = []
     for ch in chapters:
-        paragraphs_list = []
+        ch_sentences = []
         paragraphed_embeds = ch["sentence_embeddings"]
         paragraphed_text = ch["sentences"]
         
@@ -210,7 +134,7 @@ def filter_by_paragraph_and_flatten(chapters, granularity, min_par_len):
                 # If paragraph-level sequences:
                 if granularity:
                     # Append chapter tags
-                    paragraphs_list.append((None, ctag, par_text, average_embeddings(par_embeds)))
+                    ch_sentences.append((None, ctag, par_text, average_embeddings(par_embeds)))
                 else:
                     # Loop over sentences and tag for beginning and endings of paragraphs
                     par_len = len(par_text)
@@ -220,12 +144,12 @@ def filter_by_paragraph_and_flatten(chapters, granularity, min_par_len):
                         chtag = ptag if ctag == ptag else 0
 
                         # Append id to seq_list and original sent to original_list
-                        paragraphs_list.append((ptag, chtag, sent_text, sent_embed))
+                        ch_sentences.append((ptag, chtag, sent_text, sent_embed))
             elif pnum in [0, ch_len-1]:
-                paragraphs_list = []
+                ch_sentences = []
                 break
         
-        sequence_list.extend(paragraphs_list)
+        sequence_list.extend(ch_sentences)
 
     return sequence_list
 
@@ -245,7 +169,6 @@ if __name__ == "__main__":
     random.seed(args.seed)
     
     print(f"Generating Sequence Now")
-    
     with open_file(args.input, "r") as input, jsonlines.Reader(input) as reader:
         with gzip.open(args.output, mode="wt") as output, jsonlines.Writer(output) as compressed_writer:
             with open(args.readable, mode="wt") as readable, jsonlines.Writer(readable) as debug_writer:
@@ -254,19 +177,20 @@ if __name__ == "__main__":
                     if not args.cluster or args.cluster == int(doc["cluster"]):
                         sequence_list = filter_by_paragraph_and_flatten(doc["chapters"], args.granularity, args.min_par_len)
                         if sequence_list:
-                            paragraph_labels, chapter_labels, text, embeddings = zip(*sequence_list)
+                            paragraph_labels, chapter_labels, flattened_text, flattened_embeddings = zip(*sequence_list)
                             sequenced_text = {
-								"title": doc["title"],
-								"author": doc["author"],
-								"year": doc["year"],
-								"id": doc["id"],
-								"granularity": args.granularity,
-								"paragraph_labels": paragraph_labels,
-								"chapter_labels": chapter_labels,
-								"text": text,
-								"embeddings": embeddings
-							}
+                                "title": doc["title"],
+                                "author": doc["author"],
+                                "year": doc["year"],
+                                "id": doc["id"],
+                                "granularity": args.granularity,
+                                "paragraph_labels": paragraph_labels,
+                                "chapter_labels": chapter_labels,
+                                "flattened_text": flattened_text,
+                            }
                             
+                            debug_writer.write(sequenced_text)
+                            sequenced_text["embeddings"] = flattened_embeddings
                             compressed_writer.write(sequenced_text)
 
                     # if args.filters:
@@ -291,3 +215,88 @@ if __name__ == "__main__":
                     #             debug_writer.write(sequenced_text)
                         
                     
+# def filter_by_paragraph_and_convert_to_sequence(chapters, granularity, min_par_len):
+#     sequence_list = []
+#     for (_, ch) in chapters:
+#         paragraphs_list = []
+#         chapter_embeds, original_text = ch
+#         ch_len = len(chapter_embeds)
+
+#         # Loop over paragraphs
+#         for pnum, (par_embeds, par) in enumerate(zip(chapter_embeds, original_text)):
+
+#             ctag = get_ibe_tag(pnum, ch_len)
+#             par_embeds = chapter_embeds[pnum]
+
+#             if validate_paragraph(par, min_par_len):
+#                 # If paragraph-level sequences:
+#                 if granularity:
+#                     # Append chapter tags
+#                     paragraphs_list.append((None, ctag, par, average_embeddings(par_embeds)))
+#                 else:
+#                     # Loop over sentences and tag for beginning and endings of paragraphs
+#                     par_len = len(par_embeds)
+#                     for snum, (sent_embed, sent) in enumerate(zip(par_embeds, par)):
+#                         # Get sentence-level tag for paragraphs
+#                         ptag = get_ibe_tag(snum, par_len)
+#                         chtag = ptag if ctag == ptag else 0
+
+#                         # Append id to seq_list and original sent to original_list
+#                         paragraphs_list.append((ptag, chtag, sent, sent_embed))
+#             elif pnum in [0, ch_len-1]:
+#                 paragraphs_list = []
+#                 break
+        
+#         sequence_list.extend(paragraphs_list)
+
+#     return sequence_list
+
+# def filter_by_sentence_and_convert_to_sequence(chapters, granularity, min_par_len):
+#     sequence_list = []
+#     for (_, ch) in chapters:
+#         paragraphs_list = []
+#         chapter_embeds, original_text = ch
+#         ch_len = len(chapter_embeds)
+
+#         if ch_len < 3:
+#             continue
+#         # Loop over paragraphs
+#         for pnum, (par_embeds, par) in enumerate(zip(chapter_embeds, original_text)):
+
+#             ctag = get_ibe_tag(pnum, ch_len)
+#             par_embeds = chapter_embeds[pnum]
+
+#             subparagraph_list = []
+#             valid_par = validate_paragraph(par, min_par_len)
+
+#             if valid_par:
+#                 # If paragraph-level sequences:
+#                 if granularity:
+#                     # Append chapter tags
+#                     subparagraph_list.append((None, ctag, par, average_embeddings(par_embeds)))
+#                 else:
+#                     # Loop over sentences and tag for beginning and endings of paragraphs
+#                     par_len = len(par_embeds)
+#                     for snum, (sent_embed, sent) in enumerate(zip(par_embeds, par)):
+#                         # Get sentence-level tag for paragraphs
+#                         ptag = get_ibe_tag(snum, par_len)
+#                         chtag = ptag if ctag == ptag else 0
+
+#                         # Append id to seq_list and original sent to original_list
+#                         if validate_sentence(sent):
+#                             subparagraph_list.append((ptag, chtag, sent, sent_embed))
+
+#             if valid_par and (granularity != (len(subparagraph_list) >= min_par_len)):
+#                 paragraphs_list.extend(subparagraph_list)
+#             elif pnum in [0, ch_len-1]:
+#                 paragraphs_list = []
+#                 break
+        
+#         sequence_list.extend(paragraphs_list)
+
+#     # if sequence_list:
+#     #     ptags, chtags, _, _ = zip(*sequence_list)
+#     #     assert ptags.count(1) == ptags.count(2)
+#     #     print(f"Start chapter tags: {chtags.count(1)} -- End chapter tags: {chtags.count(2)}")
+#     #     assert chtags.count(1) == chtags.count(2)
+#     return sequence_list

@@ -6,17 +6,18 @@ from utility import make_dirs
 import gzip
 import re
 from utility import parse_labels
+from tqdm import tqdm
 
 def random_subsequence(sequence, minimum_len, maximum_len):
     """Sample a random subsequence between minimum_len and maximum_len from the overall sequence.
 
     Args:
-        sequence (list): _description_
-        minimum_len (int): _description_
-        maximum_len (int): _description_
+        sequence (list): zipped list of all sequences that is to be sampled from
+        minimum_len (int): minimum length of subsequence to sample
+        maximum_len (int): maximum length of subsequence to sample
 
     Returns:
-        list: subsequence
+        list: sampled subsequence
     """    
     # Validate min max
     max_len = min(maximum_len, len(sequence)) 
@@ -32,31 +33,17 @@ def random_subsequence(sequence, minimum_len, maximum_len):
 
     return sequence[start_idx : start_idx + sub_seq_len]
 
-# Based on matched_idxs, sample
-# Sequence: ((tag, embedding), original_text)
-def random_biased_subsequence(sequence,  matched_idxs, min_len, max_len):
-    max_len = min(max_len, len(sequence)) 
-    min_len = max(min_len, 1)
-
-    if min_len > max_len or not matched_idxs:
-        return []
-    
-    sub_seq_len = random.randint(min_len, max_len)
-    chosen_match = random.choice(matched_idxs)
-    start_idx = random.randint(max(0, chosen_match - sub_seq_len), chosen_match)
-    return sequence[start_idx: start_idx + sub_seq_len]
-    
-
-def get_matching_idxs(sequence, label_type):
-    _, labels, _ = unpack_sequence_data(sequence)
-    return [i for i, label in enumerate(labels) if label == label_type]
-
-def unpack_sequence_data(sequence):
-    data_seq, text_seq = zip(*sequence)
-    labels, embeds = zip(*data_seq)
-    return text_seq, labels, embeds
-
 def sample_from_beginning(sequence, minimum_len, maximum_len):
+    """Sample a random subsequence starting from the beginning between minimum_len and maximum_len.
+
+    Args:
+        sequence (list): zipped list of all sequences that is to be sampled from
+        minimum_len (int): minimum length of subsequence to sample
+        maximum_len (int): maximum length of subsequence to sample
+
+    Returns:
+        list: sampled subsequence
+    """    
     # Validate min max
     max_len = min(maximum_len, len(sequence)) 
     min_len = max(minimum_len, 1)
@@ -70,7 +57,7 @@ def sample_from_beginning(sequence, minimum_len, maximum_len):
 
     return sequence[:sub_seq_len]
 
-# Todo: fix this
+# TODO: fix this
 def sample_from_chapter_beginnings(sequence, minimum_len, maximum_len):
     max_len = min(maximum_len, len(sequence)) 
     min_len = max(minimum_len, 1)
@@ -106,19 +93,16 @@ if __name__ == "__main__":
     
     print("**Creating datapoints**")
     
-    with gzip.open(args.input, "r") as input_file, gzip.open(args.output, mode="wt") as output_file:
+    with gzip.open(args.input, "r") as input_file, open(args.output, mode="wt") as output_file:
         with jsonlines.Reader(input_file) as input, jsonlines.Writer(output_file) as writer:
             # For line in jsonlines
             data = [] # datapoints for current book
-            print(f"max: {args.max_len}")
-            print(f"min: {args.min_len}")
-            for idx, doc in enumerate(input):
-                print(f"IDX: {idx}")
+            for idx, doc in tqdm(enumerate(input)):
                 
                 zipped_lst = list(zip(
                     doc["paragraph_labels"], 
                     doc["chapter_labels"], 
-                    doc["text"], 
+                    doc["flattened_text"], 
                     doc["embeddings"]
                 ))
 
@@ -134,13 +118,18 @@ if __name__ == "__main__":
                             raise ValueError("Did not match sampling method")
                     if not sample_seq:
                         break
-                    paragraph_labels, chapter_labels, text, embeddings = zip(*sample_seq)
-                    datapoint = {"id" : doc["id"],
-                                "granularity": doc["granularity"],
-                                "paragraph_labels": paragraph_labels,
-                                "chapter_labels": chapter_labels,
-                                "text": text,
-                                "embeddings": embeddings}
+                    paragraph_labels, chapter_labels, flattened_text, embeddings = zip(*sample_seq)
+                    datapoint = {
+									"title": doc["title"],
+									"author": doc["author"],
+									"year": doc["year"],
+									"id": doc["id"],
+									"granularity": doc["granularity"],
+									"paragraph_labels": paragraph_labels,
+									"chapter_labels": chapter_labels,
+									"flattened_text": flattened_text,
+									"embeddings": embeddings
+          						}
                     data.append(datapoint)
                 
 
@@ -150,3 +139,29 @@ if __name__ == "__main__":
             # Write resulting data
             for d in data:
                 writer.write(d)
+                
+                
+                
+# # Based on matched_idxs, sample
+# # Sequence: ((tag, embedding), original_text)
+# def random_biased_subsequence(sequence,  matched_idxs, min_len, max_len):
+#     max_len = min(max_len, len(sequence)) 
+#     min_len = max(min_len, 1)
+
+#     if min_len > max_len or not matched_idxs:
+#         return []
+    
+#     sub_seq_len = random.randint(min_len, max_len)
+#     chosen_match = random.choice(matched_idxs)
+#     start_idx = random.randint(max(0, chosen_match - sub_seq_len), chosen_match)
+#     return sequence[start_idx: start_idx + sub_seq_len]
+    
+
+# def get_matching_idxs(sequence, label_type):
+#     _, labels, _ = unpack_sequence_data(sequence)
+#     return [i for i, label in enumerate(labels) if label == label_type]
+
+# def unpack_sequence_data(sequence):
+#     data_seq, text_seq = zip(*sequence)
+#     labels, embeds = zip(*data_seq)
+#     return text_seq, labels, embeds

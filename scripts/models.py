@@ -8,18 +8,19 @@ import torch.optim as optim
 
 class SequenceTagger(nn.Module):
 
-    def __init__(self, input_size, label_classes, label_class_weights = None, hidden_dim = 512, output_layers = 1, lstm_layers = 1):
+    def __init__(self, input_size, label_classes, label_class_weights = None, hidden_dim = 512, output_layers = 1, lstm_layers = 2, dropout = 0.4):
         # input: (N, L, H_in), output: (N, L, D * H_out) where D = 2 if bidirectional, 1 otherwise
         # input_size must be the same size as the bert embedding
         assert input_size == 768
         super(SequenceTagger, self).__init__()
         
         self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_dim, num_layers = 2, batch_first = True, bidirectional = True)
+        self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_dim, num_layers = lstm_layers, batch_first = True, bidirectional = True)
         
         self.heads = nn.ModuleList()
         self.classes = label_classes
         self.class_weights = []
+        self.dropout = nn.Dropout(p=dropout)
 
         for i, labels in enumerate(label_classes):
             head = nn.Sequential()
@@ -40,6 +41,7 @@ class SequenceTagger(nn.Module):
     def forward(self, sentence_embeds, labels = None, device = "cpu"):
         self.lstm.flatten_parameters() # input is (32, SEQ_LEN, 768)
         lstm_out, _ = self.lstm(sentence_embeds) # lstm_out is (batch_size, seq_len, 2 * hidden_dim)
+        lstm_out = self.dropout(lstm_out)
         preds = [output_layer(lstm_out) for output_layer in self.heads]
         
         if labels:
@@ -50,10 +52,17 @@ class SequenceTagger(nn.Module):
         loss = 0
         for pred, label, label_class, class_weight in zip(preds, labels, self.classes, self.class_weights):
             if label_class and class_weight:
-                reshaped_output, reshaped_label = reshape_output_label(pred, label, len(label_class))
+                reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
                 loss += class_weight * self.loss_fn(reshaped_output, reshaped_label)
         return loss
     
+def flatten_output_and_label(output, label, num_classes=2):
+    output = output.view(-1, num_classes) # (N, L, num_classes) -> (N x L, num_classes)
+    label = label.view(-1) # (N, L) -> (N x L)
+    if num_classes == 2:
+        label = (label > 0).long()
+    
+    return output, label
 
 class SequenceTaggerWithBahdanauAttention(nn.Module):
 
@@ -215,7 +224,7 @@ class GeneralMulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
         loss = 0
         for pred, label, label_class, class_weight in zip(preds, labels, self.classes, self.class_weights):
             if label_class and class_weight:
-                reshaped_output, reshaped_label = reshape_output_label(pred, label, len(label_class))
+                reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
                 loss += class_weight * self.loss_fn(reshaped_output, reshaped_label)
         return loss
     
@@ -239,7 +248,7 @@ class GeneralMulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
         return (h_0, c_0)
     
 
-def reshape_output_label(output, label, num_classes=2):
+def flatten_output_and_label(output, label, num_classes=2):
     output = output.view(-1, num_classes) # (N, L, num_classes) -> (N x L, num_classes)
     label = label.view(-1) # (N, L) -> (N x L)
     if num_classes == 2:
@@ -329,7 +338,7 @@ class MulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
     def get_loss(self, preds, labels):
         loss = 0
         for pred, label, label_class in zip(preds, labels, self.classes):
-            reshaped_output, reshaped_label = reshape_output_label(pred, label, len(label_class))
+            reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
             print(reshaped_label)
             loss += self.loss_fn(reshaped_output, reshaped_label)
         return loss

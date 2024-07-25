@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--inputs", dest="inputs", nargs = "*", help="Filepaths containing data to be sampled")
     parser.add_argument("--output", dest="output", help="Output file name")
     parser.add_argument("--shuffle", dest="shuffle", type = int, help = "To shuffle or not")
-    parser.add_argument("--sample_size", dest="sample_size", default = sys.maxsize, type=int, help = "Max size")
+    parser.add_argument("--sample_size", dest="sample_size", nargs = "?", default = sys.maxsize, type=int, help = "Max size")
     parser.add_argument("--seed", dest="seed", type = int, default = 0)
     args, rest = parser.parse_known_args()
 

@@ -43,8 +43,8 @@ def encode_chapter(tokenizer, model, paragraphs, max_toks):
     """Encode the sentences in each chapter provided a tokenizer, model, and sentences in each paragraph
 
     Args:
-        tokenizer (_type_): the tokenizer for the embedding model
-        model (_type_): the embedding model
+        tokenizer (PreTrainedTokenizer): the tokenizer for the embedding model
+        model (PreTrainedModel): the embedding model
         paragraphs (list): where each element is a list of sentences representing one paragraph
         max_toks (int): the maximum length for the tokenizer
 

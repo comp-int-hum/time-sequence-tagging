@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import json
 import os
-from utility import make_dirs, make_dir, parse_labels
+from utility import make_dirs, make_dir, parse_labels, open_file
 import gzip
 import torch.nn.utils.rnn as rnn_utils
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
@@ -18,18 +18,34 @@ from collections import defaultdict
 from tqdm import tqdm
 
 def unpack_data(datapoint):
-    data = datapoint.pop("embeddings")
+    """Unpack data from datapoint dict
+
+    Args:
+        datapoint (dict): a dictionary representing a sequence from a text and its metadata
+
+    Returns:
+        tuple: (embeddings, multiclass labels, metadata)
+    """    
+    embeddings = datapoint.pop("embeddings")
     paragraph_labels = datapoint["paragraph_labels"]
     chapter_labels = datapoint["chapter_labels"]
     metadata = datapoint
 
-    return data, [paragraph_labels, chapter_labels], metadata
+    return embeddings, [paragraph_labels, chapter_labels], metadata
     
-def get_batch(filepath, batch_size=32, device="cuda"):
+def get_batch(filepath, batch_size=32, device="cpu"):
+    """Create batches based on file path and batch_size
+
+    Args:
+        filepath (str): filepath to data
+        batch_size (int, optional): Batch size for model training. Defaults to 32.
+        device (str, optional): Device to move tensors to. Defaults to "cpu".
+
+    Returns:
+        tuple: (data_batches, label_batches), metadata_batches
+    """    
     data_batches, label_batches, metadata_batches = [], [], []
     data_batch, label_batch, metadata_batch = [], [], []
-    total_datapoints = 0
-    positive_datapoints = 0
     
     # Helper function for appending batches and padding if model_type is sequence_tagger
     def append_data(batch_data, batch_label, batch_metadata):
@@ -40,10 +56,10 @@ def get_batch(filepath, batch_size=32, device="cuda"):
         metadata_batches.append(batch_metadata)
         
     # Open data file
-    with gzip.open(filepath, "r") as gzipfile:
-        datapoints = jsonlines.Reader(gzipfile)
-        for datapoint in datapoints:
-            total_datapoints += 1
+    total = 0
+    with open_file(filepath, "r") as source_file, jsonlines.Reader(source_file) as datapoints:
+        for i, datapoint in enumerate(datapoints):
+            total += 1
             data, label, metadata = unpack_data(datapoint)
                 
             # Append data
@@ -60,19 +76,30 @@ def get_batch(filepath, batch_size=32, device="cuda"):
         if data_batch:
             append_data(data_batch, label_batch, metadata_batch)
 
-    print(f"NUM DATAPOINTS IN FILE {total_datapoints}")
-    return (data_batches, label_batches), metadata_batches, positive_datapoints, total_datapoints
+    return (data_batches, label_batches), metadata_batches, total
 
 def evaluate(model, batches, metadata, class_labels, device):
+    """Evaluate model given batches, metadata, and class labels
+
+    Args:
+        model (): sequence tagging model
+        batches (tuple): (input_data, input_label) where each is a list of lists of tensors
+        metadata (list): each element is a batch of dict items representing the metadata for the datapoints
+        class_labels (list): where each element is a list of different class labels (e.g. none, par_start, par_end)
+        device (): device on which to place model
+
+    Returns:
+        _type_: _description_
+    """    
     model.eval()
-    
     input_data, input_labels = batches
+    
     assert len(metadata) == len(input_data)
     assert len(metadata) == len(input_labels)
 
-    all_preds = []
-    all_labels = []
-    all_pred_values = []
+    all_tasks_preds = []
+    all_tasks_labels = []
+    all_tasks_pred_scores = []
     with torch.no_grad():
         for input, labels in zip(input_data, input_labels):
             # If empty batch, pass
@@ -84,56 +111,41 @@ def evaluate(model, batches, metadata, class_labels, device):
             labels = [l.to(device) for l in labels]
 
             # Call to forward (possible multi-class outputs)
-            outputs = model(input, device = device)
-            reshaped_outputs, reshaped_labels = reshape_outputs_labels(outputs, labels, class_labels)
-            # preds = [torch.argmax(reshaped_output, dim = 1) for reshaped_output in reshaped_outputs]
-
-            # all_preds.append([pred.cpu().tolist() for pred in preds])
-            # all_preds.append([
-            #     torch.argmax(reshaped_output, dim=1).cpu().tolist() if reshaped_output.numel() > 0 else []
-            #     for reshaped_output in reshaped_outputs
-            # ])
-            # all_pred_values.append([torch.max(reshaped_output, dim=1)[0].cpu().tolist()
-            #     if reshaped_output.numel() > 0 else []
-            #     for reshaped_output in reshaped_outputs
-            # ])
-            # all_labels.append(reshaped_labels)
+            task_outputs = model(input, device = device)
+            flattened_outputs, flattened_labels = flatten_multiclass_outputs_labels(task_outputs, labels, class_labels)
+            
             max_values_indices = [
-                torch.max(reshaped_output, dim=1) if reshaped_output.numel() > 0 else (torch.tensor([]), torch.tensor([]))
-                for reshaped_output in reshaped_outputs
+                torch.max(flattened_output, dim=1) if flattened_output.numel() > 0 else (torch.tensor([]), torch.tensor([]))
+                for flattened_output in flattened_outputs
             ]
 
             # Separate the values and indices
             max_values = [max_val_ind[0].cpu().tolist() for max_val_ind in max_values_indices]
             indices = [max_val_ind[1].cpu().tolist() for max_val_ind in max_values_indices]
 
-            all_preds.append(indices)
-            all_pred_values.append(max_values)
-            all_labels.append(reshaped_labels)
+            all_tasks_preds.append(indices)
+            all_tasks_pred_scores.append(max_values)
+            all_tasks_labels.append(flattened_labels)
     
     # Calculate final metrics
-    all_labels = [sum(sublists, []) for sublists in zip(*all_labels)]
-    all_preds = [sum(sublists, []) for sublists in zip(*all_preds)]
-    all_pred_values = [sum(sublists, []) for sublists in zip(*all_pred_values)]
-    all_metadata = [sent for batch in metadata for doc in batch for sent in doc["text"]]
+    all_tasks_labels = [sum(sublists, []) for sublists in zip(*all_tasks_labels)]
+    all_tasks_preds = [sum(sublists, []) for sublists in zip(*all_tasks_preds)]
+    all_tasks_pred_scores = [sum(sublists, []) for sublists in zip(*all_tasks_pred_scores)]
+    all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_text"]]
 
-    print(f"length of labels: {len(all_labels[0])}")
+    print(f"length of labels: {len(all_tasks_labels[0])}")
     print(f"Length of flattened metadata: {len(all_metadata)}")
 
-    # print(f"All labels: {all_labels}")
-    # print(f"All preds: {all_preds}")
+    # Calculate metrics across classes
+    return get_multiclass_metrics(all_tasks_labels, all_tasks_preds, class_labels), get_confusion_metadata(all_tasks_labels, all_tasks_preds, all_tasks_pred_scores, class_labels, all_metadata)
 
-    cms = []
-    f1s = []
-    accuracies = []
+def get_multiclass_metrics(task_labels, task_preds, label_groups):
+    accuracies, f1s, cms = [], [], []
     
     # Calculate metrics across classes
-    print(f"Length of all labels ({len(all_labels)} - all preds ({len(all_preds)} - class labels {len(class_labels)}))")
-    for all_label, all_pred, class_label in zip(all_labels, all_preds, class_labels):
-        print(f"CLASS LABEL: {class_label}")
-        if class_label:
-            print(f"LEGITIMATE CLASS LABEL")
-            labels=list(range(len(class_label)))
+    for all_label, all_pred, class_labels in zip(task_labels, task_preds, label_groups):
+        if class_labels:
+            labels=list(range(len(class_labels)))
             cm = confusion_matrix(y_true=all_label, y_pred=all_pred, labels=labels)
             f1 = f1_score(y_true=all_label, y_pred=all_pred, labels=labels, average=None)
             accuracy = accuracy_score(y_true = all_label, y_pred = all_pred)
@@ -141,9 +153,9 @@ def evaluate(model, batches, metadata, class_labels, device):
             f1s.append(f1)
             accuracies.append(accuracy)
         else:
-            print("ILLEGITIMATE LABEL")
-
-    return accuracies, f1s, cms, get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels, all_metadata)
+            print("Empty label")
+    
+    return accuracies, f1s, cms
 
 def get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels, metadata):
     multiclass_labelled_datapoints = []
@@ -176,48 +188,38 @@ def get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels,
                     
             multiclass_labelled_datapoints.append(confusion_datapoints)
     return multiclass_labelled_datapoints
-
-
-
   
-# Flatten outputs and labels, taking into account multi-class
-# List of multiclass, flattened
-def reshape_outputs_labels(outputs, labels, classes):
-    assert len(classes) == len(outputs)
-    reshaped_outputs = [] # output.view(-1, len(class_lst)) for class_lst, output in zip(classes, outputs)] # (N, L, num_classes) -> (N x L, num_classes)
-    reshaped_labels = []
-    print(f"CLASSES: {len(classes)} - OUTPUTS: {len(outputs)} - LABELS: {len(labels)}")
-    for class_lst, output, label in zip(classes, outputs, labels):
+def flatten_multiclass_outputs_labels(task_outputs, task_labels, task_classes):
+    """Flatten the outputs and labels, while transforming them to conform to the provided task_classes labels.
+
+    Args:
+        task_outputs (list): _description_
+        task_labels (list): _description_
+        task_classes (list): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    assert len(task_classes) == len(task_outputs)
+    
+    flattened_preds, flattened_labels = [], []
+    # Loop over different classification tasks
+    for class_lst, output, label in zip(task_classes, task_outputs, task_labels):
+        # Handle multiclass for outputs
         if class_lst:
-            reshaped_outputs.append(output.view(-1, len(class_lst)))
+            flattened_preds.append(output.view(-1, len(class_lst)))
         else:
-            reshaped_outputs.append(torch.empty(0, dtype=torch.long))
+            flattened_preds.append(torch.empty(0, dtype=torch.long))
+            
+        # Handle multiclass for labels (while also dealing with binary task)
         if len(class_lst) == 2:
             transformed_label = (label.view(-1) > 0).long()
         else:
             transformed_label = label.view(-1)
+        flattened_labels.append(transformed_label.cpu().tolist())
+        
+    return flattened_preds, flattened_labels
 
-        reshaped_labels.append(transformed_label.cpu().tolist())
-    return reshaped_outputs, reshaped_labels
-
-
-def calculate_accuracy(preds, labels, metadata):
-    incorrect_texts = []
-
-    # Get predictions and incorrectly predicted sequences
-    predicted_classes = torch.argmax(preds, dim=2)
-    correct_predictions = (predicted_classes == labels)
-    num_correct = correct_predictions.sum().item()
-    total = torch.numel(predicted_classes)
-
-    # Iterate over batches and gather incorrect texts
-    for i, correct_item in enumerate(correct_predictions): # (N, L)
-        if not correct_item.all():
-            error_idxs = (~correct_item).nonzero(as_tuple=False).view(-1).tolist()
-            metadata[i]["errors"] = [(labels[i, idx].item(), predicted_classes[i, idx].item(), metadata[i]["original_text"][idx]) for idx in error_idxs]
-            incorrect_texts.append(metadata[i])
-
-    return num_correct, total, incorrect_texts
     
 def plot_confusion_matrix(output_dir, cms, label_classes):
     cols = 2
@@ -289,10 +291,6 @@ if __name__ == "__main__":
     
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    
-    print(f"PARSED LABELS: ****************************************")
-    print(args.classes)
-
     torch.cuda.empty_cache()
 
     if torch.cuda.is_available():
@@ -305,10 +303,11 @@ if __name__ == "__main__":
     best_accuracy = 0
 
     num_classes = len(args.classes)
+    
     # Get batches
-    train_batches, train_metadata, train_positive, train_size = get_batch(args.data[0], device = device)
-    dev_batches, dev_metadata, dev_positive, dev_size = get_batch(args.data[1], batch_size = 1, device = device)
-    test_batches, test_metadata, test_positive, test_size = get_batch(args.data[2], batch_size=1, device = device)
+    train_batches, train_metadata, train_size = get_batch(args.data[0], device = device)
+    dev_batches, dev_metadata, dev_size = get_batch(args.data[1], batch_size = 1, device = device)
+    test_batches, test_metadata, test_size = get_batch(args.data[2], batch_size=1, device = device)
 
 
     if "sequence_tagger_with_bahdanau_attention" == args.model:
@@ -333,13 +332,9 @@ if __name__ == "__main__":
     make_dirs(args.model_name)
     print(f"Model name: {args.model_name}")
     make_dir(args.visualizations)
-    
-    # os.makedirs(os.path.dirname(args.model_name), exist_ok=True)
-    # os.makedirs(os.path.dirname(args.visualizations), exist_ok=True)
 
     model_log = os.path.join(args.visualizations, "model_training_log.txt")
 
-    # make_dirs(model_log)
     with open(model_log, "w") as log_file:
 
         train_losses = []
@@ -366,6 +361,7 @@ if __name__ == "__main__":
 
             # Dev Loop
             with torch.no_grad():
+                model.eval()
                 for dev_input, dev_label in zip(*dev_batches):
                     dev_input = dev_input.to(device)
                     dev_label = [l.to(device) for l in dev_label]
@@ -400,11 +396,12 @@ if __name__ == "__main__":
                 break
 
 
-        # Test
+        # Write out test data
         print(f"Test batches: {len(test_batches)}")
         print(f"Test batches metadata: {len(test_metadata)}")
         model.load_state_dict(torch.load(args.model_name))
-        accuracies, f1s, cms, confusion_metadata = evaluate(model, test_batches, test_metadata, args.classes, device)
+        result_stats, confusion_metadata = evaluate(model, test_batches, test_metadata, args.classes, device)
+        (accuracies, f1s, cms) = result_stats
         log_file.write(f"Test Accuracies: {accuracies} \n")
         log_file.write(f"Test F scores: {f1s} \n")
         log_file.write(f"Train size: {train_size} \n")

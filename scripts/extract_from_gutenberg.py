@@ -325,7 +325,8 @@ def parse_volumes_into_documents(file_path, metadata):
     """    
     if not os.path.isfile(file_path):
         print(f"File path problem with {file_path}")
-        return []
+        return None
+        # return []
     
     processed_docs = []
     with open(file_path, "rb") as file:
@@ -359,6 +360,10 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
     """
     data = []
     tag_counts = Counter()
+    potential_docs = 0
+    prose = 0
+    found_files = 0
+    
     with open(catalog_file) as catalog:
         csv_reader = csv.DictReader(catalog)
         # Iterate through metadata csv
@@ -368,22 +373,28 @@ def process_files_from_corpus_directory(catalog_file, base_dir):
             has_lit_tag, metadata = get_metadata_from_csv(row)
             
             # If has literature tag and a title
-            if has_lit_tag and row["Title"].strip() and not is_poetry(row["Title"]):
-                
-                # Get gutenberg id and extract volumes from text
-                gutenberg_id = row["Text#"]
-                file_path = get_gb_html_dir(base_dir, gutenberg_id)
-                extracted_volumes = parse_volumes_into_documents(file_path, metadata)
-                
-                # If volumes were successfully extracted
-                if extracted_volumes:
-                    data.extend(extracted_volumes)
+            if has_lit_tag and row["Title"].strip():
+                potential_docs += 1
+                if not is_poetry(row["Title"]):
+                    prose += 1
                     
-                    # Count tags
-                    for t in metadata["tags"]:
-                        tag_counts[t] += 1
+                    # Get gutenberg id and extract volumes from text
+                    gutenberg_id = row["Text#"]
+                    file_path = get_gb_html_dir(base_dir, gutenberg_id)
+                    extracted_volumes = parse_volumes_into_documents(file_path, metadata)
+                    
+                    if extracted_volumes is not None:
+                        found_files += 1
+                    
+                    # If volumes were successfully extracted
+                    if extracted_volumes:
+                        data.extend(extracted_volumes)
                         
-    return data, tag_counts
+                        # Count tags
+                        for t in metadata["tags"]:
+                            tag_counts[t] += 1                   
+                        
+    return data, tag_counts, ((i-1), potential_docs, prose, found_files)
 
 # def process_files_from_local_directory(base_dir):
 #     data = []
@@ -416,7 +427,7 @@ if __name__ == "__main__":
         data = []
         # data = process_files_from_local_directory(args.base_dir)
     else:
-        data, tag_counts = process_files_from_corpus_directory(args.catalog_file, args.base_dir)
+        data, tag_counts, doc_counts = process_files_from_corpus_directory(args.catalog_file, args.base_dir)
 
     for d in data:
         assert(d != {})
@@ -435,8 +446,12 @@ if __name__ == "__main__":
             
     
     with open(args.output_catalog, "w") as output_catalog_file:
-        output_catalog_file.write(f"Number of total documents found: {len(data)} \n")
-        output_catalog_file.write(f"Nummber of unique documents found: {len(unique_ids)} \n")
+        output_catalog_file.write(f"Number of documents in pg_metadata: {doc_counts[0]} \n")
+        output_catalog_file.write(f"Number of potential documents (has literature tag and valid title): {doc_counts[1]} \n")
+        output_catalog_file.write(f"Number of prose documents in potential docs: {doc_counts[2]} \n")
+        output_catalog_file.write(f"Number of prose documents with valid paths: {doc_counts[3]} \n")
+        output_catalog_file.write(f"Number of total documents extracted: {len(data)} \n")
+        output_catalog_file.write(f"Number of unique documents found: {len(unique_ids)} \n")
         output_catalog_file.write(table_obj.draw())
         
     # with open(args.output, "w") as output_file:

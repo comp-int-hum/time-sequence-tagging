@@ -38,29 +38,6 @@ def is_dialogue(sentence):
         return False
     return True
 
-
-
-# def ids_to_line_nums_dict(pg_path):
-#     reverse_dict = {}
-#     with jsonlines.open(pg_path, "r") as reader:
-#         for i, text in enumerate(reader):
-#             reverse_dict[text["id"]] = i
-#     return reverse_dict
-
-# def convert_ids_to_line_nums(reverse_dict, texts):
-#     line_nums = []
-#     for text in texts:
-#         line_nums.append(reverse_dict[text["id"]])
-#     return line_nums
-
-# def get_texts(pg_path, line_nums):
-#     texts = {}
-#     with jsonlines.open(pg_path, "r") as reader:
-#         for i, text in enumerate(reader):
-#             if i in line_nums:
-#                 texts[text["id"]] = text
-#     return texts
-
 def convert_numpy(obj):
     if isinstance(obj, np.integer):
         return int(obj)
@@ -71,29 +48,29 @@ def convert_numpy(obj):
     else:
         raise TypeError(f"Object {type(obj)} cannot be serialized")
 
-
-# Assume file has ids in sorted order
-def append_metadata_to_stats(pg_path, text_statistics):
-    with jsonlines.open(pg_path, "r") as reader:
-        for text in reader:
-            if text["id"] in text_statistics:
-                text_statistics[text["id"]] += (text["title"], text["author"])
-
 def gather_text_stats(chapters):
+    """_summary_
+
+    Args:
+        chapters (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
     ch_lens = []
     par_lens = []
     ch_dialogue = []
 
     # Loop over chapters
-    for (_, ch) in chapters:
-        _, original_text = ch
+    for ch in chapters:
+        paragraphed_text = ch["sentences"]
         
         # Define ch_len and dialogue
         ch_len = 0
         dialogue = 0
         
          # Loop over paragraphs
-        for pars in original_text:
+        for pars in paragraphed_text:
             par_lens.append(len(pars))
             ch_len += len(pars)
             for sent in pars:
@@ -143,7 +120,7 @@ def kmeans_cluster_texts(text_tuples, image_path, num_clusters):
         if i in sample_indices:
             plt.annotate(txt, (reduced_features[i, 0], reduced_features[i, 1]), fontsize=6, alpha=1.0)
             
-	# Save and show
+    # Save and show
     plt.savefig(image_path)
     plt.show()
     
@@ -151,8 +128,8 @@ def kmeans_cluster_texts(text_tuples, image_path, num_clusters):
     
 def gmm_cluster(text_tuples, image_path, num_clusters):
     text_data = np.array(text_tuples)
-    features = text_data[:, 0:-2].astype(float)
-    labels = text_data[:, -2:]
+    features = text_data[:, 0:-1].astype(float)
+    labels = text_data[:, -1:]
     # print(f"Features: {features.shape}")
     
     # Normalize
@@ -207,14 +184,13 @@ if __name__ == "__main__":
     # Read and cluster
     with open_file(args.collection, "r") as file:
         with jsonlines.Reader(file) as collection:
-            text_statistics = {}
-            for idx, doc in tqdm(enumerate(collection), desc="Collecting Metadata"):
-                text_stats = gather_text_stats(list(doc["encoded_segments"].items()))
-                if 0 not in text_stats[0:4]:
-                    text_statistics[doc["id"]] = text_stats
+            text_statistics = []
+            for idx, doc in tqdm(enumerate(collection), desc="Collecting Text Stats"):
+                text_stats = gather_text_stats(doc["chapters"])
+                if 0 not in text_stats:
+                     text_statistics.append(text_stats + (doc["title"],))
             
-            append_metadata_to_stats(args.pg_path, text_statistics)
-            cluster_labels, cluster_centers = gmm_cluster(list(text_statistics.values()), args.image, args.clusters)
+            cluster_labels, cluster_centers = gmm_cluster(text_statistics, args.image, args.clusters)
 
     # Add metadata and cluster labels and rewrite out
     with open_file(args.collection, "r") as file:
@@ -237,17 +213,14 @@ if __name__ == "__main__":
             }
             
             with gzip.open(args.compressed_output, mode = "wt") as output:
-                for c_label, text_stats, doc in tqdm(zip(cluster_labels, text_statistics.values(), collection), desc="Writing out"):
+                for c_label, text_stats, doc in tqdm(zip(cluster_labels, text_statistics, collection), desc="Writing out"):
                     c_label_str = str(c_label)
                     doc.update({
                         "cluster": c_label_str,
-                        "title": text_stats[-2],
-                        "author": text_stats[-1],
                         "stat_labels": ["Avg chapter length (in par)", "StDev for chapter len", "Avg paragraph len (in sentences)", "StDev for par len"],
-                        "stats": text_stats[:-2]
+                        "stats": text_stats[:-1]
                     })
                     output.write(json.dumps(doc) + "\n")
-                    del doc["encoded_segments"]
                     
                     # Optionally: switch to reservoir sampling
                     if len(group_by_cluster[c_label_str]) < 10:
