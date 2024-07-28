@@ -7,4 +7,7 @@ torch
 matplotlib
 nltk
 scikit-learn
+numpy
+tqdm
 steamroller
+texttable

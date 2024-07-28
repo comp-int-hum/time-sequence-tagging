@@ -1,21 +1,16 @@
 import argparse
 import json
 import jsonlines
-from encode_data import get_paragraphs
 
-#
-# This script does *nothing* except print out its arguments and touch any files
-# specified as outputs (thus fulfilling a build system's requirements for
-# success).
-#
-def get_reverse_dict(pg_path):
+
+def get_id_to_line_nums_dict(pg_path):
     reverse_dict = {}
     with jsonlines.open(pg_path, "r") as reader:
         for i, text in enumerate(reader):
             reverse_dict[text["id"]] = i
     return reverse_dict
 
-def get_lines_to_read(reverse_dict, texts):
+def convert_ids_to_line_nums(reverse_dict, texts):
     line_nums = []
     for text in texts:
         line_nums.append(reverse_dict[text["id"]])
