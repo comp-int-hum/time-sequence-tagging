@@ -1,20 +1,5 @@
 import os
 import os.path
-import logging
-import random
-import subprocess
-import shlex
-import gzip
-import re
-import functools
-import time
-import imp
-import sys
-import json
-# # workaround needed to fix bug with SCons and the pickle module
-# del sys.modules['pickle']
-# sys.modules['pickle'] = imp.load_module('pickle', *imp.find_module('pickle'))
-# import pickle
 from steamroller import Environment
 
 vars = Variables("custom.py")
@@ -36,19 +21,22 @@ vars.AddVariables(
     ("FOLDS", "Number of times to replicate", 1),
     ("DATA_ROOT", "", os.path.expanduser("~/corpora")),
     ("WW_DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
-    ("PG_DATAPATH", "", "${DATA_ROOT}/gutenberg/"),
+    ("GUTENBERG_PATH", "", "${DATA_ROOT}/gutenberg/"),
+    ("CHICAGO_PATH", "", "${DATA_ROOT}/us_novels_pre1927.zip"),
+    ("TOY_PATH", "", "/work/toy_datasets/"),
     ("LOCAL_DATA", "", ""),
-    ("PG_CATALOG", "", "pg_catalog.csv"),
+    ("GUTENBERG_CATALOG", "", "pg_catalog.csv"),
     ("ENC_MODEL_NAME", "", "bert-base-uncased"),
     ("ENCODE_SIZE", "Maximum number of texts to encode", 3000),
     ("MAX_TOKS", "", 512),
     ("EMB_DIM", "Size of BERT embedding", 1536),
     ("CLUSTERS", "Number of clusters when grouping", 3),
-    ("SPLIT_SIZE", "Maximum number of texts to use during train/test/split", 600),
+    ("SPLIT_SIZE", "Maximum number of texts to use during train/test/split", None),
     ("SPLIT_RATIOS", "Ratios to use for train/dev/test", [0.8, 0.1, 0.1]),
     ("SAMPLES", "Number of chapters to sample from text", 5),
     ("EXPERIMENT_TYPE", "", "sequence_tagger"),  # sequence_tagger, cross-classifier, classifier, contrastive
     ("SEQ_LENGTHS", "", [(30,40)]),
+    ("TRAIN_SAMPLES", "How many samples to take from the train text ", [10]),
     ("MODEL_NAMES", "", []),
     ("EPOCHS", "Number of epochs to train model", 100),
     ("EXPERIMENTS", "", [])
@@ -56,11 +44,13 @@ vars.AddVariables(
 
 # Overrides
 vars.AddVariables(
-    ("PG_FILE", "", ""), 
-    ("ENC_FILE", "", ""),
+    ("GUTENBERG_TEXTS", "", ""),
+    ("CHICAGO_TEXTS", "", ""),
+    ("ENCODED_TEXTS", "", ""),
     ("SEQ_FILE", "", ""),
-    ("TOY_FILE", "", ""),
-    ("TOY_RUN", "", False)
+    ("TOY_ROOT", "Root of toy dataset directory", f"work/toy_datasets/"),
+    ("TOY_RUN", "Number of texts in toy run (where 0 is all available texts)", 0),
+    ("TOY_FILE", "", "${TOY_ROOT}/toy_${TOY_RUN}.jsonl.gz"),
 )
 
 # Variables for strict classifier-based project
@@ -81,11 +71,11 @@ env = Environment(
         "ExtractFromGutenberg" : Builder(
             action="python scripts/extract_from_gutenberg.py --base_dir ${PG_DATAPATH} --catalog ${SOURCES} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --local ${LOCAL}",
         ),
-        "ProcessWW" : Builder(
-            action="python scripts/process_ww.py --output ${TARGETS} --data_path ${SOURCES}",
+        "ExtractTextsFromChicago" : Builder(
+            action="python scripts/extract_structure_from_chicago.py --chicago_path ${CHICAGO_PATH} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --min_chapters ${MIN_CHAPTERS} --max_title_len ${MAX_TITLE_LEN}",
         ),
         "CreateSample": Builder (
-            action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --shuffle ${SHUFFLE} --sample_size ${SAMPLE_SIZE} --seed ${FOLDS}"
+            action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --shuffle ${SHUFFLE} --sample_size ${SAMPLE_SIZE} --seed ${FOLDS}",
         ),
         "EncodeData": Builder(
             action="python scripts/encode_data.py --input ${SOURCES[0]} --output ${TARGETS[0]} --model_name ${ENC_MODEL_NAME} --max_toks ${MAX_TOKS}",
@@ -118,141 +108,113 @@ env = Environment(
             action="python scripts/collate_results.py --data ${SOURCES} --target ${TARGETS}"
         ),
         "SanityCheck": Builder(
-			action="python scripts/sanity_check.py --splits ${SOURCES} --output ${TARGETS}"
-		)
+            action="python scripts/sanity_check.py --splits ${SOURCES} --output ${TARGETS}"
+        )
     }
 )
 
-# Extract documents from Project Gutenberg
-if env.get("LOCAL_DATA", None):
-    print("Debugging run")
-    pg_local = env.ProcessPGLocal(source = env["PG_CATALOG"] ,
-                                  target = ["work/gutenberg.jsonl", "work/test.txt"])
-else:
-    if env.get("PG_FILE", None):
-        extracted_docs = env.File(env["PG_FILE"])
-    else:
-        extracted_docs, extracted_catalog = env.ExtractFromGutenberg(source = env["PG_CATALOG"] ,
-                                                                     target = ["work/data/gutenberg_file.jsonl", "work/data/gutenberg_catalog_extracted.txt"],
-                                                                     STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-                                                                     STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-                                                                     STEAMROLLER_MEMORY="32G")
-        # Downsample Step
-        pg_sample = env.CreateSample(source = [extracted_docs],
-                                     target = ["work/data/gutenberg_sample.jsonl"],
-                                     SAMPLE_SIZE = 100000,
-                                     SHUFFLE = 1,
-                                     STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-                                     STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-                                     STEAMROLLER_MEMORY="32G")
 
+if env.get("GUTENBERG_TEXTS", None):
+    gutenberg_docs = env.File(env["GUTENBERG_TEXTS"])
+else:
+    gutenberg_docs, extracted_catalog = env.ExtractFromGutenberg(source = env["GUTENBERG_CATALOG"] ,
+                                                                 target = ["work/data/gutenberg_file.jsonl", "work/data/gutenberg_catalog_extracted.txt"])
+
+if env.get("CHICAGO_TEXTS", None):
+    chicago_docs = env.File(env["CHICAGO_TEXTS"])
+else:
+    chicago_docs = env.ExtractTextsFromChicago(source = [],
+                                               target = ["work/data/chicago_texts.jsonl.gz", "work/data/chicago_extracted_texts_catalog.txt.gz"],
+                                               MIN_CHAPTERS = 3,
+                                               MAX_TITLE_LEN = 20)
+    
 # Encode documents and create data lake
-if env.get("ENC_FILE", None):
-    pg_enc = env.File(env["ENC_FILE"])
+if env.get("ENCODED_TEXTS", None):
+    enc_texts = env.File(env["ENCODED_TEXTS"])
 else:
-    pg_enc = env.EncodeData(source = [pg_sample],
-                            target = ["work/data/gutenberg_encoded.jsonl.gz"],
-                            STEAMROLLER_GPU_COUNT=1,
-                            STEAMROLLER_ACCOUNT=env.get("GPU_ACCOUNT", None),
-                            STEAMROLLER_QUEUE=env.get("GPU_QUEUE", None),
-                            STEAMROLLER_TIME = "12:00:00",
-                            STEAMROLLER_MEMORY="32G")
+    enc_texts = env.EncodeData(source = [chicago_docs],
+                               target = ["work/data/encoded_texts.jsonl.gz"],
+                               STEAMROLLER_GPU_COUNT=1,
+                               STEAMROLLER_ACCOUNT=env.get("GPU_ACCOUNT", None),
+                               STEAMROLLER_QUEUE=env.get("GPU_QUEUE", None),
+                               STEAMROLLER_TIME = "12:00:00",
+                               STEAMROLLER_MEMORY="32G")
 
-# Switch to toy file of encoded data if toy file exists
-if env["TOY_RUN"] and env.get("TOY_FILE"):
-    print("Switched to toy file")
-    pg_enc = env.File(env["TOY_FILE"])
-elif env["TOY_RUN"]:
-    pg_enc = env.CreateSample(source = [pg_enc],
-                              target = ["work/data/toy_1600.jsonl.gz"],
-                              SHUFFLE = 0,
-                              SAMPLE_SIZE = 1600,
-                              STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-							  STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-							  STEAMROLLER_MEMORY="32G")
+# # Switch to toy file of encoded data if toy file exists
+if os.path.exists(str(env.File((env["TOY_FILE"])))):
+    enc_texts = env.File(env["TOY_FILE"])
+elif env["TOY_RUN"] > 0:
+    enc_texts = env.CreateSample(source = [enc_texts],
+                                 target = [f"{str(env.File((env['TOY_FILE'])))}"],
+                                 SHUFFLE = 0,
+                                 SAMPLE_SIZE = env["TOY_RUN"])
 
-# # Create splits of the data (train, dev, test)
-exp_type = env["EXPERIMENT_TYPE"]
+seq_file = env.GenerateSequence(source = [enc_texts],
+                                target = [f"work/sequence_data/flattened_embeddings.jsonl.gz", f"work/sequence_data/readable_sequence.jsonl"],
+                                GRANULARITY = 0,
+                                CLUSTER = None)
+
+# Create splits
 
 train_paths, dev_paths, test_paths = [], [], []
 
 for i in range(env["FOLDS"]):
-    train_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_train.jsonl.gz")
-    dev_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_dev.jsonl.gz")
-    test_paths.append(f"work/experiments/{exp_type}/trial_{i}/shuffle_test.jsonl.gz")
+    train_paths.append(f"work/experiments/trial_{i}/splits/train_docs.jsonl.gz")
+    dev_paths.append(f"work/experiments/trial_{i}/splits/dev_docs.jsonl.gz")
+    test_paths.append(f"work/experiments/trial_{i}/splits/test_docs.jsonl.gz")
 
 output_paths = train_paths + dev_paths + test_paths
 
-# # Cluster and filter
-# compressed_collection, sample_clusters, cluster_graph = env.ClusterCollection(source = [pg_enc],
-#                                                                               target = [f"work/data/encoded_clustered_collection.jsonl.gz", f"work/data/sample_clusters.json", f"work/data/cluster_graph.png"],
-#                                                                               PG_COLLECTION = extracted_docs)
+train_test_files = env.SplitData(source = [seq_file], 
+                                 target = [output_paths])
 
-
-# # Flatten data to sequence representation
-seq_file = env.GenerateSequence(source = [pg_enc],
-                                target = [f"work/data/flattened_encodings.jsonl.gz", f"work/data/readable-sequence.jsonl"],
-                                GRANULARITY = 0,
-                                CLUSTER = None,
-                                STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-								STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-								STEAMROLLER_MEMORY="32G")
-
+# Begin experiments on splits
 experiment_results = []
-for experiment in env["EXPERIMENTS"]:
-    experiment_name, tagging_method, class_labels = experiment
 
-    train_test_files = env.SplitData(source = [seq_file], 
-                                     target = [output_paths])
-    
-    for n in range(env["FOLDS"]):
-        for min_seq, max_seq in env["SEQ_LENGTHS"]:
-            train_set = env.SampleSequence(source = train_test_files[n],
-                                           target = f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/data/{min_seq}-{max_seq}/train.jsonl",
-                                           SAMPLES = 10,
-                                           MIN_SEQ = min_seq,
-                                           MAX_SEQ = max_seq,
-                                           SAMPLE_METHOD = "random_subseq",
-                                           STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-										   STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-										   STEAMROLLER_MEMORY="32G")
-            dev_set = env.SampleSequence(source = train_test_files[env["FOLDS"]+n],
-                                        target = f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/data/{min_seq}-{max_seq}/dev.jsonl",
-                                        SAMPLES = 5,
-                                        MIN_SEQ = min_seq,
-                                        MAX_SEQ = max_seq,
-                                        SAMPLE_METHOD = "random_subseq",
-                                        STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-										STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-										STEAMROLLER_MEMORY="32G")
-            # Create full-text samples
-            test_set = env.SampleSequence(source = train_test_files[env["FOLDS"]*2+n],
-                                          target = f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/data/{min_seq}-{max_seq}/test.jsonl",
-                                          SAMPLES = 5,
-                                          MIN_SEQ = min_seq,
-                                          MAX_SEQ = max_seq,
-                                          SAMPLE_METHOD = "random_subseq",
-                                          STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-										  STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-										  STEAMROLLER_MEMORY="32G")
-            
-            sanity_check_result = env.SanityCheck(source = [train_set, dev_set, test_set],
-                                                  target = [f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/data/{min_seq}-{max_seq}/sanity_check_output.txt"])
-            
-            for model_name in env["MODEL_NAMES"]:
-                result = env.TrainSequenceModel(source = [train_set, dev_set, test_set],
-												target = f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/{min_seq}-{max_seq}/{model_name}/results.pickle", 
-												SAVE_NAME=f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/{min_seq}-{max_seq}/{model_name}/best_model/{min_seq}-{max_seq}-model.pt",
-												VISUALIZATIONS=f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/{min_seq}-{max_seq}/{model_name}/visualizations",
-												MODEL = model_name,
-												EMB_DIM = 768,
-												BATCH=32,
-												CLASSES = class_labels,
-												OUTPUT_LAYERS = 2,
-            									STEAMROLLER_QUEUE=env["CPU_QUEUE"],
-												STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"],
-												STEAMROLLER_MEMORY="32G")
-                experiment_results.append(result)
+for n in range(env["FOLDS"]):
+	for min_seq, max_seq in env["SEQ_LENGTHS"]:
+		dev_set = env.SampleSequence(source = train_test_files[env["FOLDS"]+n],
+										target = f"work/experiments/trial_{n}/sampled_sequences/{min_seq}-{max_seq}/dev.jsonl",
+										SAMPLES = 2,
+										MIN_SEQ = min_seq,
+										MAX_SEQ = max_seq,
+										SAMPLE_METHOD = "random_subseq")
+		# Create full-text samples
+		test_set = env.SampleSequence(source = train_test_files[env["FOLDS"]*2+n],
+										target = f"work/experiments/trial_{n}/sampled_sequences/{min_seq}-{max_seq}/test.jsonl",
+										SAMPLES = 1,
+										MIN_SEQ = min_seq,
+										MAX_SEQ = max_seq,
+										SAMPLE_METHOD = "random_subseq")
+  
+		for train_sample_size in env["TRAIN_SAMPLES"]:
+			train_set = env.SampleSequence(source = train_test_files[n],
+											target = f"work/experiments/trial_{n}/sampled_sequences/{min_seq}-{max_seq}/TrS-{train_sample_size}/train.jsonl",
+											SAMPLES = train_sample_size,
+											MIN_SEQ = min_seq,
+											MAX_SEQ = max_seq,
+											SAMPLE_METHOD = "random_subseq")
+			
+			# sanity_check_result = env.SanityCheck(source = [train_set, dev_set, test_set],
+			#                                       target = [f"work/experiments/{exp_type}/{tagging_method}/trial_{n}/{experiment_name}/data/{min_seq}-{max_seq}/sanity_check_output.txt"])
+			
+			for experiment in env["EXPERIMENTS"]:
+				experiment_name = experiment["name"]
+				class_labels = experiment["labels"]
+	
+				for model_name in env["MODEL_NAMES"]:
+					result = env.TrainSequenceModel(source = [train_set, dev_set, test_set],
+													target = f"work/experiments/trial_{n}/TrS-{train_sample_size}-{min_seq}-{max_seq}/{experiment_name}/{model_name}/results.pickle", 
+													SAVE_NAME=f"work/experiments/trial_{n}/TrS-{train_sample_size}-{min_seq}-{max_seq}/{experiment_name}/{model_name}/best_model/model.pt",
+													VISUALIZATIONS=f"work/experiments/trial_{n}/TrS-{train_sample_size}-{min_seq}-{max_seq}/{experiment_name}/{model_name}/visualizations",
+													MODEL = model_name,
+													EMB_DIM = 768,
+													BATCH=32,
+													CLASSES = class_labels,
+													OUTPUT_LAYERS = 2)
+					experiment_results.append(result)
+                
+                
                 # report = env.GenerateReport(source = [errors],
                 #                             target = f"work/experiments/{exp_type}/{tagging_method}/{experiment_name}/{min_seq}-{max_seq}/{model_name}/trial_{n}/result/{min_seq}-{max_seq}-errors.txt",
                 #                             MODEL_TYPE = model_name,
@@ -260,6 +222,7 @@ for experiment in env["EXPERIMENTS"]:
                 
 # report = env.CollateResults(source = experiment_results,
 #                             target = f"work/experiments/{exp_type}/final_report")
+
 
 
 

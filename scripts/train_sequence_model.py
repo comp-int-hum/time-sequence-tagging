@@ -3,10 +3,8 @@ import torch
 import jsonlines
 import torch.nn as nn
 import torch.optim as optim
-import json
 import os
 from utility import make_dirs, make_dir, parse_labels, open_file
-import gzip
 import torch.nn.utils.rnn as rnn_utils
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
@@ -26,7 +24,7 @@ def unpack_data(datapoint):
     Returns:
         tuple: (embeddings, multiclass labels, metadata)
     """    
-    embeddings = datapoint.pop("embeddings")
+    embeddings = datapoint.pop("flattened_embeddings")
     paragraph_labels = datapoint["paragraph_labels"]
     chapter_labels = datapoint["chapter_labels"]
     metadata = datapoint
@@ -131,7 +129,7 @@ def evaluate(model, batches, metadata, class_labels, device):
     all_tasks_labels = [sum(sublists, []) for sublists in zip(*all_tasks_labels)]
     all_tasks_preds = [sum(sublists, []) for sublists in zip(*all_tasks_preds)]
     all_tasks_pred_scores = [sum(sublists, []) for sublists in zip(*all_tasks_pred_scores)]
-    all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_text"]]
+    all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_sentences"]]
 
     print(f"length of labels: {len(all_tasks_labels[0])}")
     print(f"Length of flattened metadata: {len(all_metadata)}")
@@ -321,7 +319,7 @@ if __name__ == "__main__":
 
     
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, )
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     without_improvement = 0
     
@@ -352,7 +350,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 train_input = train_input.to(device)
                 train_label = [l.to(device) for l in train_label]
-                train_loss, _ = model(train_input, labels = train_label, device = device)
+                train_loss, preds = model(train_input, labels = train_label, device = device)
                 train_loss.backward()
                 optimizer.step()
 
@@ -385,7 +383,7 @@ if __name__ == "__main__":
                 best_dev_loss = epoch_dev_loss
                 torch.save(model.state_dict(), args.model_name)
                 
-            if abs(epoch_dev_loss - prev_dev_loss) < 0.005:
+            if abs(epoch_dev_loss - prev_dev_loss) < 0.0005:
                 without_improvement += 1
             else:
                 without_improvement = 0

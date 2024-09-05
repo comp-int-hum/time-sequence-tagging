@@ -58,6 +58,7 @@ def encode_chapter(tokenizer, model, paragraphs, max_toks):
 
         batched_sentences = get_sentence_batch(paragraph=paragraph, batch_size=5)
         par_embeds = []
+        
         for batch in batched_sentences:
             tokens = tokenizer(batch, padding=True, truncation=True, return_tensors="pt", max_length=max_toks)
             bert_output = model(input_ids = tokens["input_ids"].to(device),
@@ -67,9 +68,11 @@ def encode_chapter(tokenizer, model, paragraphs, max_toks):
 
             bert_hidden_states = bert_output["hidden_states"]
             cls_token_batch = bert_hidden_states[-1][:,0,:] # dimension should be curr_batch_size, hidden_size
-               # assert(len(sents) == cls_token_batch.size(0))
+            
+            # assert(len(sents) == cls_token_batch.size(0))
             s_embeddings = torch.split(cls_token_batch, split_size_or_sections=1, dim=0)
             par_embeds.extend([s_embedding.squeeze(dim=0).tolist() for s_embedding in s_embeddings])
+            
         chapter_embeds.append(par_embeds)
     
     return chapter_embeds
@@ -96,13 +99,13 @@ if __name__ == "__main__":
     model = BertModel.from_pretrained(args.model_name)
     model.to(device)
                 
-    with open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
+    with gzip.open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
         with jsonlines.Reader(input_file) as reader, jsonlines.Writer(output_file) as writer:
             for idx, doc in tqdm(enumerate(reader)):
                 valid_doc = True
                 for chapter in doc["chapters"]:
-                    if chapter["sentences"]:
-                        chapter["sentence_embeddings"] = encode_chapter(tokenizer, model, chapter["sentences"], args.max_toks)
+                    if chapter["structure"]:
+                        chapter["embedded_structure"] = encode_chapter(tokenizer, model, chapter["structure"], args.max_toks)
                     else:
                         # Set valid_doc to false due to encountering text structure issue
                         valid_doc = False

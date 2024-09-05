@@ -38,7 +38,7 @@ class SequenceTagger(nn.Module):
         self.loss_fn = nn.CrossEntropyLoss()
         
 
-    def forward(self, sentence_embeds, labels = None, device = "cpu"):
+    def forward(self, sentence_embeds, labels = None, flatten = False, device = "cpu"):
         self.lstm.flatten_parameters() # input is (32, SEQ_LEN, 768)
         lstm_out, _ = self.lstm(sentence_embeds) # lstm_out is (batch_size, seq_len, 2 * hidden_dim)
         lstm_out = self.dropout(lstm_out)
@@ -63,6 +63,27 @@ def flatten_output_and_label(output, label, num_classes=2):
         label = (label > 0).long()
     
     return output, label
+
+# if flatten:
+# 				return (self.get_loss(preds,))
+def flatten_multiclass_outputs_and_labels(task_outputs, task_labels, task_classes):
+    assert len(task_classes) == len(task_outputs)
+    
+    flattened_preds, flattened_labels = [], []
+
+    # Looping over different classification tasks
+    for class_lst, output, label in zip(task_classes, task_outputs, task_labels):
+        num_classes = len(class_lst)
+        
+        if num_classes > 0:
+            flattened_output, transformed_label = flatten_output_and_label(output, label, num_classes)
+            flattened_preds.append(flattened_output)
+            flattened_labels.append(transformed_label.cpu().tolist())
+        else:
+            flattened_preds.append(torch.empty(0, dtype=torch.long))
+            flattened_labels.append([])
+
+    return flattened_preds, flattened_labels
 
 class SequenceTaggerWithBahdanauAttention(nn.Module):
 

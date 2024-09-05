@@ -47,6 +47,8 @@ if __name__ == "__main__":
     
     random.seed(args.seed)
     
+    args.sample_size = args.sample_size if args.sample_size else sys.maxsize
+    
     print(f"***************** BEGIN SHUFFLE **********************")
 
     # Make output paths

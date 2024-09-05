@@ -33,6 +33,39 @@ def random_subsequence(sequence, minimum_len, maximum_len):
 
     return sequence[start_idx : start_idx + sub_seq_len]
 
+def random_subsequences(sequence, minimum_len, maximum_len, num_samples):
+    """Sample a random subsequence between minimum_len and maximum_len from the overall sequence.
+
+    Args:
+        sequence (list): zipped list of all sequences that is to be sampled from
+        minimum_len (int): minimum length of subsequence to sample
+        maximum_len (int): maximum length of subsequence to sample
+
+    Returns:
+        list: sampled subsequence
+    """    
+    # Validate min max
+    max_len = min(maximum_len, len(sequence)) 
+    min_len = max(minimum_len, 1)
+
+    if min_len > max_len:
+        print(f"Error creating sequence: min: {minimum_len} - max: {maximum_len}")
+        return []
+
+    # Generate random sample_length and start_idx
+    sample_length = random.randint(min_len, max_len)
+    start_idx = random.randint(0, min(sample_length, len(sequence) - sample_length))
+    
+    # Generate samples
+    samples = []
+    for i in range(start_idx, len(sequence), sample_length):
+        sample = sequence[i:i+sample_length]
+        if len(sample) == sample_length:
+            samples.append(sample)
+
+    return random.sample(samples, min(len(samples), num_samples))
+
+
 def sample_from_beginning(sequence, minimum_len, maximum_len):
     """Sample a random subsequence starting from the beginning between minimum_len and maximum_len.
 
@@ -102,34 +135,26 @@ if __name__ == "__main__":
                 zipped_lst = list(zip(
                     doc["paragraph_labels"], 
                     doc["chapter_labels"], 
-                    doc["flattened_text"], 
-                    doc["embeddings"]
+                    doc["flattened_sentences"], 
+                    doc["flattened_embeddings"]
                 ))
 
-                for _ in range(args.samples):
-                    match args.sample_method:
-                        case "from_beginning":
-                            sample_seq = sample_from_beginning(zipped_lst, args.min_len, args.max_len)
-                        case "from_chapter_beginning":
-                            sample_seq = sample_from_chapter_beginnings(zipped_lst, args.min_len, args.max_len)
-                        case "random_subseq":
-                            sample_seq = random_subsequence(zipped_lst, args.min_len, args.max_len)
-                        case _:
-                            raise ValueError("Did not match sampling method")
-                    if not sample_seq:
-                        break
-                    paragraph_labels, chapter_labels, flattened_text, embeddings = zip(*sample_seq)
+                match args.sample_method:
+                    case "random_subseq":
+                        sample_seqs = random_subsequences(zipped_lst, args.min_len, args.max_len, args.samples)
+                    case _:
+                        raise ValueError("Did not match sampling method")
+                    
+                for seq in sample_seqs:
+                    paragraph_labels, chapter_labels, flattened_sentences, flattened_embeddings = zip(*seq)
                     datapoint = {
-									"title": doc["title"],
-									"author": doc["author"],
-									"year": doc["year"],
-									"id": doc["id"],
-									"granularity": doc["granularity"],
-									"paragraph_labels": paragraph_labels,
-									"chapter_labels": chapter_labels,
-									"flattened_text": flattened_text,
-									"embeddings": embeddings
-          						}
+                                    "metadata": doc["metadata"],
+                                    "granularity": doc["granularity"],
+                                    "paragraph_labels": paragraph_labels,
+                                    "chapter_labels": chapter_labels,
+                                    "flattened_sentences": flattened_sentences,
+                                    "flattened_embeddings": flattened_embeddings
+                                    }
                     data.append(datapoint)
                 
 
@@ -165,3 +190,14 @@ if __name__ == "__main__":
 #     data_seq, text_seq = zip(*sequence)
 #     labels, embeds = zip(*data_seq)
 #     return text_seq, labels, embeds
+
+# for _ in range(args.samples):
+    # match args.sample_method:
+    #     case "from_beginning":
+    #         sample_seq = sample_from_beginning(zipped_lst, args.min_len, args.max_len)
+    #     case "from_chapter_beginning":
+    #         sample_seq = sample_from_chapter_beginnings(zipped_lst, args.min_len, args.max_len)
+    #     case "random_subseq":
+    #         sample_seq = random_subsequence(zipped_lst, args.min_len, args.max_len)
+    #     case _:
+    #         raise ValueError("Did not match sampling method")
