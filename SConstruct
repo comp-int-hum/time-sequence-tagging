@@ -81,7 +81,9 @@ env = Environment(
         "ExtractStructureFromTexts" : Builder(
             action="python scripts/extract_structure_from_texts.py --input ${SOURCES[0]} --output ${TARGETS[0]}"
         ),
-        
+        "ComputeDatasetStatistics" : Builder(
+            action="python scripts/compute_dataset_statistics.py --input ${SOURCES[0]} --output ${TARGETS[0]}"
+        ),
         #"ProcessPGLocal" : Builder(
         #    action="python scripts/extract_from_gutenberg.py --base_dir ${LOCAL_TEST} --input ${SOURCES} --output ${TARGETS} --local $LOCAL",
         #),
@@ -138,6 +140,11 @@ texts = env.ExtractTextsFromGutenberg(
 structure = env.ExtractStructureFromTexts(
     "work/structure.jsonl.gz",
     texts
+)
+
+data_stats = env.ComputeDatasetStatistics(
+    "work/dataset_stats.tex",
+    structure
 )
 
 # sys.exit()
