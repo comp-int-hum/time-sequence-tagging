@@ -25,7 +25,10 @@ vars.AddVariables(
     ("CHICAGO_PATH", "", "${DATA_ROOT}/us_novels_pre1927.zip"),
     ("TOY_PATH", "", "/work/toy_datasets/"),
     ("LOCAL_DATA", "", ""),
-    ("GUTENBERG_CATALOG", "", "pg_catalog.csv"),
+    ("GUTENBERG_CATALOG", "", "pg_catalog.csv"),)
+
+vars.AddVariables(
+    ("CHAPTER_FILTERS", "", ["'^chapter\s+\w+\.?$'", "'^.{0,20}$'"]), #  [r"^chapter\s+\w+\.?$", r"^.{0,20}$"]),
     ("ENC_MODEL_NAME", "", "bert-base-uncased"),
     ("ENCODE_SIZE", "Maximum number of texts to encode", 3000),
     ("MAX_TOKS", "", 512),
@@ -48,7 +51,7 @@ vars.AddVariables(
     ("CHICAGO_TEXTS", "", ""),
     ("ENCODED_TEXTS", "", ""),
     ("SEQ_FILE", "", ""),
-    ("TOY_ROOT", "Root of toy dataset directory", f"work/toy_datasets/"),
+    ("TOY_ROOT", "Root of toy dataset directory", f"work/toy_datasets"),
     ("TOY_RUN", "Number of texts in toy run (where 0 is all available texts)", 0),
     ("TOY_FILE", "", "${TOY_ROOT}/toy_${TOY_RUN}.jsonl.gz"),
 )
@@ -72,7 +75,7 @@ env = Environment(
             action="python scripts/extract_from_gutenberg.py --base_dir ${PG_DATAPATH} --catalog ${SOURCES} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --local ${LOCAL}",
         ),
         "ExtractTextsFromChicago" : Builder(
-            action="python scripts/extract_structure_from_chicago.py --chicago_path ${CHICAGO_PATH} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --min_chapters ${MIN_CHAPTERS} --max_title_len ${MAX_TITLE_LEN}",
+            action="python scripts/extract_structure_from_chicago.py --chicago_path ${CHICAGO_PATH} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --min_chapters ${MIN_CHAPTERS} --chapter_filters ${CHAPTER_FILTERS}",
         ),
         "CreateSample": Builder (
             action="python scripts/create_sample.py --inputs ${SOURCES} --output ${TARGETS[0]} --shuffle ${SHUFFLE} --sample_size ${SAMPLE_SIZE} --seed ${FOLDS}",
@@ -99,7 +102,7 @@ env = Environment(
             action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model ${MODEL} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS[0]} --errors ${TARGETS[1]} --batch ${BATCH} --confusion ${CM}",
         ),
         "TrainSequenceModel": Builder(
-            action="python scripts/train_sequence_model.py --data ${SOURCES} --model_save_name ${SAVE_NAME} --visualizations ${VISUALIZATIONS} --output_data ${TARGETS} --model ${MODEL}  --emb_dim ${EMB_DIM} --output_layers ${OUTPUT_LAYERS} --classes ${CLASSES} --num_epochs ${EPOCHS} --batch ${BATCH}",
+            action="python scripts/train_sequence_model.py --data ${SOURCES} --model_save_name ${SAVE_NAME} --visualizations ${VISUALIZATIONS} --output_data ${TARGETS} --model ${MODEL}  --emb_dim ${EMB_DIM} --output_layers ${OUTPUT_LAYERS} --classes ${CLASSES} --num_epochs ${EPOCHS} --batch ${BATCH} --dropout ${DROPOUT}",
         ),
         "GenerateReport": Builder(
             action="python scripts/generate_report.py --input ${SOURCES[0]} --output ${TARGETS} --pg_path ${PG_PATH}"
@@ -112,7 +115,6 @@ env = Environment(
         )
     }
 )
-
 
 if env.get("GUTENBERG_TEXTS", None):
     gutenberg_docs = env.File(env["GUTENBERG_TEXTS"])
@@ -211,7 +213,8 @@ for n in range(env["FOLDS"]):
 													EMB_DIM = 768,
 													BATCH=32,
 													CLASSES = class_labels,
-													OUTPUT_LAYERS = 2)
+													OUTPUT_LAYERS = 2,
+             										DROPOUT = 0.6)
 					experiment_results.append(result)
                 
                 

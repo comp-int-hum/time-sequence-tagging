@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--inputs", dest="datapath", nargs = 1, help="Primary training file")
     parser.add_argument("--outputs", dest="outputs", nargs="*", help="Output filepaths")
     parser.add_argument("--sample_size", type=int, nargs = "?", default = sys.maxsize, dest="sample_size")
-    parser.add_argument("--split_ratio", nargs = 3, type=float, dest="ratio")
+    parser.add_argument("--split_ratio", nargs = 3, type=float, dest="split_ratio")
     parser.add_argument("--cd", dest="cd", nargs="?", default = None, help = "If it exists, the cross_domain test file")
     parser.add_argument("--seed", dest="seed", type=int, help = "Seed for random shuffle")
     args, rest = parser.parse_known_args()
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     source_sample_size = min(args.sample_size, source_size)
 
     # Get train and dev sizes
-    tr_size = int(args.ratio[0] * source_sample_size)
-    tr_dev_size = int(sum(args.ratio[0:2]) * source_sample_size)
+    tr_size = int(args.split_ratio[0] * source_sample_size)
+    tr_dev_size = int(sum(args.split_ratio[0:2]) * source_sample_size)
     
     # Build source document samples
     folds = []

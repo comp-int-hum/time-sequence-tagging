@@ -6,14 +6,15 @@ import torch.optim as optim
 import os
 from utility import make_dirs, make_dir, parse_labels, open_file
 import torch.nn.utils.rnn as rnn_utils
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
 import numpy as np
 import logging
 from models import SequenceTagger, SequenceTaggerWithBahdanauAttention, GeneralMulticlassSequenceTaggerWithBahdanauAttention
 import pickle
-from collections import defaultdict
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
+from collections import defaultdict
+import texttable as tt
 
 def unpack_data(datapoint):
     """Unpack data from datapoint dict
@@ -24,13 +25,8 @@ def unpack_data(datapoint):
     Returns:
         tuple: (embeddings, multiclass labels, metadata)
     """    
-    embeddings = datapoint.pop("flattened_embeddings")
-    paragraph_labels = datapoint["paragraph_labels"]
-    chapter_labels = datapoint["chapter_labels"]
-    metadata = datapoint
+    return datapoint.pop("flattened_embeddings"), [datapoint["paragraph_labels"], datapoint["chapter_labels"]], datapoint
 
-    return embeddings, [paragraph_labels, chapter_labels], metadata
-    
 def get_batch(filepath, batch_size=32, device="cpu"):
     """Create batches based on file path and batch_size
 
@@ -76,7 +72,7 @@ def get_batch(filepath, batch_size=32, device="cpu"):
 
     return (data_batches, label_batches), metadata_batches, total
 
-def evaluate(model, batches, metadata, class_labels, device):
+def run_model(model, optimizer, batches, device="cpu", is_train=True):
     """Evaluate model given batches, metadata, and class labels
 
     Args:
@@ -88,29 +84,42 @@ def evaluate(model, batches, metadata, class_labels, device):
 
     Returns:
         _type_: _description_
-    """    
-    model.eval()
-    input_data, input_labels = batches
+    """
+    if is_train:
+        model.train()
+    else:
+        model.eval()
     
-    assert len(metadata) == len(input_data)
-    assert len(metadata) == len(input_labels)
-
-    all_tasks_preds = []
-    all_tasks_labels = []
-    all_tasks_pred_scores = []
-    with torch.no_grad():
-        for input, labels in zip(input_data, input_labels):
+    tasks_preds = []
+    tasks_labels = []
+    tasks_pred_scores = []
+    running_loss = 0
+    input_len = 0
+    
+    with torch.set_grad_enabled(is_train):
+        for input, labels in tqdm(zip(*batches), desc = "Prediction loop"):
+            
+            if is_train:
+                optimizer.zero_grad()
+                
             # If empty batch, pass
             if input.size(0) == 0:
                 print("Empty batch")
                 continue
-
+            
+            # Move to device
             input = input.to(device)
             labels = [l.to(device) for l in labels]
 
-            # Call to forward (possible multi-class outputs)
-            task_outputs = model(input, device = device)
-            flattened_outputs, flattened_labels = flatten_multiclass_outputs_labels(task_outputs, labels, class_labels)
+            # Call  to forward (possible multi-class outputs)
+            batch_loss, (flattened_outputs, flattened_labels) = model(input, device = device, labels = labels, flatten = True)
+            
+            if is_train:
+                batch_loss.backward()
+                optimizer.step()
+            
+            running_loss += batch_loss.item()
+            input_len += input.size(0)
             
             max_values_indices = [
                 torch.max(flattened_output, dim=1) if flattened_output.numel() > 0 else (torch.tensor([]), torch.tensor([]))
@@ -120,41 +129,110 @@ def evaluate(model, batches, metadata, class_labels, device):
             # Separate the values and indices
             max_values = [max_val_ind[0].cpu().tolist() for max_val_ind in max_values_indices]
             indices = [max_val_ind[1].cpu().tolist() for max_val_ind in max_values_indices]
+            labels_cpu = [label.cpu().tolist() for label in flattened_labels]
 
-            all_tasks_preds.append(indices)
-            all_tasks_pred_scores.append(max_values)
-            all_tasks_labels.append(flattened_labels)
+            tasks_preds.append(indices)
+            tasks_pred_scores.append(max_values)
+            tasks_labels.append(labels_cpu)
     
     # Calculate final metrics
-    all_tasks_labels = [sum(sublists, []) for sublists in zip(*all_tasks_labels)]
-    all_tasks_preds = [sum(sublists, []) for sublists in zip(*all_tasks_preds)]
-    all_tasks_pred_scores = [sum(sublists, []) for sublists in zip(*all_tasks_pred_scores)]
-    all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_sentences"]]
-
-    print(f"length of labels: {len(all_tasks_labels[0])}")
-    print(f"Length of flattened metadata: {len(all_metadata)}")
-
-    # Calculate metrics across classes
-    return get_multiclass_metrics(all_tasks_labels, all_tasks_preds, class_labels), get_confusion_metadata(all_tasks_labels, all_tasks_preds, all_tasks_pred_scores, class_labels, all_metadata)
-
-def get_multiclass_metrics(task_labels, task_preds, label_groups):
-    accuracies, f1s, cms = [], [], []
+    tasks_labels = [sum(sublists, []) for sublists in zip(*tasks_labels)]
+    tasks_preds = [sum(sublists, []) for sublists in zip(*tasks_preds)]
+    tasks_pred_scores = [sum(sublists, []) for sublists in zip(*tasks_pred_scores)]
     
-    # Calculate metrics across classes
-    for all_label, all_pred, class_labels in zip(task_labels, task_preds, label_groups):
+    return (running_loss / input_len), (tasks_labels, tasks_preds, tasks_pred_scores)
+    
+
+def get_task_metrics(task_labels, task_preds, label_groups, metrics):
+    task_metrics = {metric["func"].__name__: [] for metric in metrics}
+    
+    for true_labels, predicted_labels, class_labels in zip(task_labels, task_preds, label_groups):
         if class_labels:
-            labels=list(range(len(class_labels)))
-            cm = confusion_matrix(y_true=all_label, y_pred=all_pred, labels=labels)
-            f1 = f1_score(y_true=all_label, y_pred=all_pred, labels=labels, average=None)
-            accuracy = accuracy_score(y_true = all_label, y_pred = all_pred)
-            cms.append(cm)
-            f1s.append(f1)
-            accuracies.append(accuracy)
-        else:
-            print("Empty label")
+            label_indices = list(range(len(class_labels)))
+            
+            for metric in metrics:
+                if "labels" in metric["kwargs"] and not metric["kwargs"]["labels"]:
+                    metric["kwargs"]["labels"] = label_indices
+                print(f"Metric func: {metric['func']}")
+                metric_result = metric["func"](y_true=true_labels, y_pred=predicted_labels, **metric["kwargs"])
+                task_metrics[metric["func"].__name__].append(metric_result)
     
-    return accuracies, f1s, cms
+    return task_metrics
 
+def plot_losses(output_dir, train_losses, dev_losses):
+    epochs = list(range(len(train_losses)))
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_losses, label = "Training Loss")
+    plt.plot(epochs, dev_losses, label = "Validation Loss")
+
+    plt.title("Training and Dev Losses")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+
+    plot_path = os.path.join(output_dir, 'train_and_dev_loss_plot.png')
+    plt.savefig(plot_path)
+    plt.close()
+    
+def plot_accs(output_dir, tasks_accuracies, task_labels, name):
+    epochs = list(range(len(tasks_accuracies)))
+    plt.figure(figsize=(10, 6))
+    
+    task_labels = [task_label for task_label in task_labels if task_label]
+    
+    for task_acc, task_label in zip(list(zip(*tasks_accuracies)), task_labels):
+        plt.plot(epochs, task_acc, label = f"{task_label} accuracy")
+
+    plt.title("Task accuracies vs Epochs")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend()
+
+    plot_path = os.path.join(output_dir, f'{name}_accuracies_plot.png')
+    plt.savefig(plot_path)
+    plt.close()
+    
+def plot_f1s(output_dir, tasks_f1s, task_labels, name):
+    epochs = list(range(len(tasks_f1s)))
+    plt.figure(figsize=(10, 6))
+    
+    task_labels = [task_label for task_label in task_labels if task_label]
+    
+    for task_acc, task_label in zip(list(zip(*tasks_f1s)), task_labels):
+        print(f"task f1: {task_acc}")
+        plt.plot(epochs, task_acc, label = f"{task_label} f1s")
+
+    plt.title("Task f1s vs Epochs")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend()
+
+    plot_path = os.path.join(output_dir, f'{name}_f1s_plot.png')
+    plt.savefig(plot_path)
+    plt.close()
+
+def plot_confusion_matrix(output_dir, cms, label_classes):
+    cols = 2
+    rows = (len(cms) + cols - 1) // cols
+
+    fig, axes = plt.subplots(rows, cols, figsize = (10 * cols, 10 * rows))
+    axes = axes.flatten()
+
+    label_classes = [labels for labels in label_classes if labels]
+
+    for ax, cm, label_class in zip(axes, cms, label_classes):
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels = label_class)
+        disp.plot(ax=ax, xticks_rotation="vertical")
+        ax.set_title("".join(label_class))
+    
+    for ax in axes[len(cms):]:
+        fig.delaxes(ax)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "combined_confusion_matrices.png"))
+    plt.close(fig)
+    
+    
 def get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels, metadata):
     multiclass_labelled_datapoints = []
     for labels, preds, pred_values, class_label in zip(all_labels, all_preds, all_pred_values, class_labels):
@@ -186,87 +264,18 @@ def get_confusion_metadata(all_labels, all_preds, all_pred_values, class_labels,
                     
             multiclass_labelled_datapoints.append(confusion_datapoints)
     return multiclass_labelled_datapoints
-  
-def flatten_multiclass_outputs_labels(task_outputs, task_labels, task_classes):
-    """Flatten the outputs and labels, while transforming them to conform to the provided task_classes labels.
-
-    Args:
-        task_outputs (list): _description_
-        task_labels (list): _description_
-        task_classes (list): _description_
-
-    Returns:
-        _type_: _description_
-    """    
-    assert len(task_classes) == len(task_outputs)
-    
-    flattened_preds, flattened_labels = [], []
-    # Loop over different classification tasks
-    for class_lst, output, label in zip(task_classes, task_outputs, task_labels):
-        # Handle multiclass for outputs
-        if class_lst:
-            flattened_preds.append(output.view(-1, len(class_lst)))
-        else:
-            flattened_preds.append(torch.empty(0, dtype=torch.long))
-            
-        # Handle multiclass for labels (while also dealing with binary task)
-        if len(class_lst) == 2:
-            transformed_label = (label.view(-1) > 0).long()
-        else:
-            transformed_label = label.view(-1)
-        flattened_labels.append(transformed_label.cpu().tolist())
-        
-    return flattened_preds, flattened_labels
-
-    
-def plot_confusion_matrix(output_dir, cms, label_classes):
-    cols = 2
-    rows = (len(cms) + cols - 1) // cols
-
-    fig, axes = plt.subplots(rows, cols, figsize = (10 * cols, 10 * rows))
-    axes = axes.flatten()
-
-    label_classes = [labels for labels in label_classes if labels]
-
-    for ax, cm, label_class in zip(axes, cms, label_classes):
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels = label_class)
-        disp.plot(ax=ax, xticks_rotation="vertical")
-        ax.set_title("".join(label_class))
-    
-    for ax in axes[len(cms):]:
-        fig.delaxes(ax)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "combined_confusion_matrices.png"))
-    plt.close(fig)
-
-def plot_losses(output_dir, train_losses, dev_losses):
-    epochs = list(range(len(train_losses)))
-    plt.figure(figsize=(10, 6))
-    plt.plot(epochs, train_losses, label = "Training Loss")
-    plt.plot(epochs, dev_losses, label = "Validation Loss")
-
-    plt.title("Training and Dev Losses")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-
-    plot_path = os.path.join(output_dir, 'train_and_dev_loss_plot.png')
-    plt.savefig(plot_path)
-    plt.close()
 
 def print_confusion_metadata(output_dir, confusion_metadata):
     with open(os.path.join(output_dir, "confusion_metadata.txt"), "wt") as output_file:
         for conf_metadata in confusion_metadata:
             for key in conf_metadata.keys():
                 output_file.write(f"************************ {key} **************************\n")
-                for datapoint in conf_metadata[key]:
-                    output_file.write(f"{datapoint[0]} ||| {datapoint[1]}\n")
+                for actual, predicted in conf_metadata[key]:
+                    output_file.write(f"{actual} ||| {predicted}\n")
                     output_file.write("\n")
             output_file.write("#######################################################################\n")
-            
 
-
+# all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_sentences"]]
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -284,6 +293,7 @@ if __name__ == "__main__":
     # Training params
     parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
     parser.add_argument("--batch", dest="batch", type = int, default=32, help="Batch size")
+    parser.add_argument("--dropout", dest="dropout", type=float, default = 0.4)
     
     args, rest = parser.parse_known_args()
     
@@ -308,12 +318,13 @@ if __name__ == "__main__":
     test_batches, test_metadata, test_size = get_batch(args.data[2], batch_size=1, device = device)
 
 
+    # Set models
     if "sequence_tagger_with_bahdanau_attention" == args.model:
         model = SequenceTaggerWithBahdanauAttention(input_size = args.emb_dim, num_classes = num_classes)
     elif "multiclass_sequence_tagger_with_bahdanau_attention" == args.model:
         model = GeneralMulticlassSequenceTaggerWithBahdanauAttention(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1)
     else:
-        model = SequenceTagger(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1)
+        model = SequenceTagger(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1, dropout=args.dropout)
             
     model.to(device)
 
@@ -332,45 +343,58 @@ if __name__ == "__main__":
     make_dir(args.visualizations)
 
     model_log = os.path.join(args.visualizations, "model_training_log.txt")
+    
+    training_metrics_args = [
+        {   "func": accuracy_score,
+            "kwargs": {},
+        },
+        {
+            "func": f1_score,
+            "kwargs": {"average": None, "labels": None, "zero_division": 0.0},
+        },
+    ]
+    
+    test_metrics_args = [
+        {   "func": accuracy_score,
+            "kwargs": {},
+        },
+        {
+            "func": f1_score,
+            "kwargs": {"average": None, "labels": None, "zero_division": 0.0},
+        },
+        {
+            "func": confusion_matrix,
+            "kwargs": {"labels": None},
+        },
+    ]
+
 
     with open(model_log, "w") as log_file:
 
         train_losses = []
         dev_losses = []
+        train_accs, train_f1s, train_cms = [], [], []
+        dev_accs, dev_f1s, dev_cms = [], [], []
 
         for epoch in tqdm(range(num_epochs), desc = "Epochs"):
-            model.train()
-            running_train_loss = 0.0
-            running_dev_loss = 0.0
-            train_input_len = 0
-            dev_input_len = 0
             
             # Training Loop
-            for train_input, train_label in tqdm(zip(*train_batches), desc = "Training loop"):
-                optimizer.zero_grad()
-                train_input = train_input.to(device)
-                train_label = [l.to(device) for l in train_label]
-                train_loss, preds = model(train_input, labels = train_label, device = device)
-                train_loss.backward()
-                optimizer.step()
-
-                running_train_loss += train_loss.item()
-                train_input_len += train_input.size(0)
+            epoch_train_loss, (train_labels, train_preds, train_pred_scores) = run_model(model, optimizer, train_batches, device = device, is_train=True)
+            train_metrics = get_task_metrics(train_labels, train_preds, args.classes, training_metrics_args)
+            
+            # Append train metrics
+            train_accs.append(train_metrics["accuracy_score"])
+            train_f1s.append(train_metrics["f1_score"])
 
             # Dev Loop
-            with torch.no_grad():
-                model.eval()
-                for dev_input, dev_label in zip(*dev_batches):
-                    dev_input = dev_input.to(device)
-                    dev_label = [l.to(device) for l in dev_label]
-                    dev_loss, _ = model(dev_input, labels = dev_label, device = device)
-                    
-                    running_dev_loss += dev_loss.item()
-                    dev_input_len += dev_input.size(0)
+            epoch_dev_loss, (dev_labels, dev_preds, dev_pred_scores) = run_model(model, None, dev_batches, device = device, is_train=False)
+            dev_metrics = get_task_metrics(dev_labels, dev_preds, args.classes, training_metrics_args)
+            
+            # Append dev metrics
+            dev_accs.append(dev_metrics["accuracy_score"])
+            dev_f1s.append(dev_metrics["f1_score"])
 
             # Calculate and save losses
-            epoch_train_loss = running_train_loss / train_input_len
-            epoch_dev_loss = running_dev_loss / dev_input_len
             train_losses.append(epoch_train_loss)
             dev_losses.append(epoch_dev_loss)
 
@@ -394,20 +418,68 @@ if __name__ == "__main__":
                 break
 
 
-        # Write out test data
         print(f"Test batches: {len(test_batches)}")
         print(f"Test batches metadata: {len(test_metadata)}")
         model.load_state_dict(torch.load(args.model_name))
-        result_stats, confusion_metadata = evaluate(model, test_batches, test_metadata, args.classes, device)
-        (accuracies, f1s, cms) = result_stats
-        log_file.write(f"Test Accuracies: {accuracies} \n")
-        log_file.write(f"Test F scores: {f1s} \n")
-        log_file.write(f"Train size: {train_size} \n")
-        log_file.write(f"Test size: {test_size} \n")
+        
+        # Test Loop
+        test_loss, (test_labels, test_preds, test_pred_scores) = run_model(model, None, test_batches, device = device, is_train=False)
+        test_metrics = get_task_metrics(test_labels, test_preds, args.classes, test_metrics_args)
+        
+        stats_table = tt.Texttable()
+        stats_table.set_cols_width([15, 15])
+        stats_table.set_cols_align(["l", "l"])
+        stats_table.header(["Statistic Name", "Value"])
+        stats_table.add_row(["Test Accuracies", ", ".join(map(str,test_metrics["accuracy_score"]))])
+        stats_table.add_row(["Test F scores", ", ".join(map(str,test_metrics["f1_score"]))])
+        stats_table.add_row(["Train size", train_size])
+        stats_table.add_row(["Dev size", dev_size])
+        stats_table.add_row(["Test size", test_size])
+        log_file.write(stats_table.draw())
 
     plot_losses(args.visualizations, train_losses, dev_losses)
-    plot_confusion_matrix(args.visualizations, cms, args.classes)
+    plot_accs(args.visualizations, train_accs, args.classes, name = "train")
+    plot_accs(args.visualizations, dev_accs, args.classes, name = "dev")
+    plot_f1s(args.visualizations, train_f1s, args.classes, name = "train")
+    plot_f1s(args.visualizations, dev_f1s, args.classes, name = "dev")
+    plot_confusion_matrix(args.visualizations, test_metrics["confusion_matrix"], args.classes)
+    
+    all_metadata = [sent for batch in test_metadata for doc in batch for sent in doc["flattened_sentences"]]
+    confusion_metadata = get_confusion_metadata(test_labels, test_preds, test_pred_scores, args.classes, all_metadata)
     print_confusion_metadata(args.visualizations, confusion_metadata)
 
     with open(args.output, "wb") as output_data_file:
-        pickle.dump((train_losses, dev_losses, cms, args.classes, accuracies, f1s), output_data_file)
+        pickle.dump(
+            {
+                "train_losses": train_losses, 
+                "dev_losses": dev_losses,
+                "train_accs" : train_accs,
+                "dev_accs": dev_accs,
+                "train_f1s": train_f1s,
+                "dev_f1s": dev_f1s,
+                "test_labels": test_labels,
+                "test_preds": test_preds,
+                "test_pred_scores": test_pred_scores,
+                "metadata": all_metadata,
+                "classes": args.classes
+            }, 
+            output_data_file
+        )
+
+# def get_task_metrics(task_labels, task_preds, label_groups):
+#     task_accuracies, task_f1s, task_cms = [], [], []
+    
+#     # Calculate metrics across classes
+#     for all_label, all_pred, class_labels in zip(task_labels, task_preds, label_groups):
+#         if class_labels:
+#             labels=list(range(len(class_labels)))
+#             cm = confusion_matrix(y_true=all_label, y_pred=all_pred, labels=labels)
+#             f1 = f1_score(y_true=all_label, y_pred=all_pred, labels=labels, average=None)
+#             accuracy = accuracy_score(y_true = all_label, y_pred = all_pred)
+#             task_cms.append(cm)
+#             task_f1s.append(f1)
+#             task_accuracies.append(accuracy)
+#         else:
+#             print("Empty label")
+    
+#     return task_accuracies, task_f1s, task_cms
