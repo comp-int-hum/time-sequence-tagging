@@ -3,67 +3,102 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
 
 
 class SequenceTagger(nn.Module):
 
-    def __init__(self, input_size, label_classes, label_class_weights = None, hidden_dim = 512, output_layers = 1, lstm_layers = 2, dropout = 0.4):
+    def __init__(
+            self,
+            task_sizes,
+            lstm_input_size,
+            output_layers = 1,
+            lstm_num_layers = 1,
+            lstm_hidden_size = 512,
+            mlp_layer_sizes = [256, 128],
+            dropout = 0.4
+    ):
         # input: (N, L, H_in), output: (N, L, D * H_out) where D = 2 if bidirectional, 1 otherwise
         # input_size must be the same size as the bert embedding
-        assert input_size == 768
         super(SequenceTagger, self).__init__()
-        
-        self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_dim, num_layers = lstm_layers, batch_first = True, bidirectional = True)
-        
-        self.heads = nn.ModuleList()
-        self.classes = label_classes
-        self.class_weights = []
-        self.dropout = nn.Dropout(p=dropout)
 
-        for i, labels in enumerate(label_classes):
+        self.lstm = nn.LSTM(
+            input_size = lstm_input_size,
+            hidden_size = lstm_hidden_size,
+            num_layers = lstm_num_layers,
+            batch_first = True,
+            bidirectional = True,
+            dropout=dropout
+        )
+        
+        self.classifier_heads = nn.ModuleList()
+        for task_num, task_size in enumerate(task_sizes):
             head = nn.Sequential()
-            if labels:
-                self.class_weights.append(label_class_weights[i] if label_class_weights else 1)
-                for layer_num in range(output_layers - 1):
-                    head.add_module(f"Linear Layer {layer_num}", nn.Linear(in_features = hidden_dim * 2, out_features = hidden_dim * 2))
-                    head.add_module(f"Relu {layer_num}", nn.ReLU())
-                head.add_module(f"Output layer", nn.Linear(in_features = hidden_dim * 2, out_features = len(labels)))
-            else:
-                self.class_weights.append(0)
-            self.heads.append(head)
-
+            prev_size = lstm_hidden_size * 2
+            for layer_num, size in enumerate(mlp_layer_sizes):
+                head.add_module(f"Task {task_num} Linear Layer {layer_num}", nn.Linear(in_features = prev_size, out_features = size))
+                head.add_module(f"Task {task_num} Relu {layer_num}", nn.ReLU())
+                prev_size = size
+            head.add_module(f"Task {task_num} Output layer", nn.Linear(in_features = prev_size, out_features = task_size))
+            self.classifier_heads.append(head)
+        self.dropout = nn.Dropout(dropout)
+        
         # Define loss function
-        self.loss_fn = nn.CrossEntropyLoss()
+        #self.loss_fn = nn.CrossEntropyLoss()
         
 
-    def forward(self, sentence_embeds, labels = None, device = "cpu"):
-        self.lstm.flatten_parameters() # input is (32, SEQ_LEN, 768)
-        lstm_out, _ = self.lstm(sentence_embeds) # lstm_out is (batch_size, seq_len, 2 * hidden_dim)
+    def forward(self, sentence_embeds, device = "cpu"):
+        self.lstm.flatten_parameters()
+        lstm_out, _ = self.lstm(sentence_embeds)
         lstm_out = self.dropout(lstm_out)
-        preds = [output_layer(lstm_out) for output_layer in self.heads]
+        outputs = torch.stack([head(lstm_out) for head in self.classifier_heads], 1)
+        return outputs
         
-        if labels:
-            return (self.get_loss(preds, labels), preds)
-        return preds # (N, L, num_classes)
+        # if labels != None:
+        #     flattened_outputs, flattened_labels = process_task_outputs_and_labels(outputs, labels, self.classes, to_cpu = False)
+        #     #print(flattened_outputs.shape)
+        #     #print(flattened_labels.shape)
+        #     #print(outputs.shape)
+        #     loss, tasks_preds = self.compute_loss_and_prediction(flattened_outputs, flattened_labels, return_predictions)
+            
+        #     result = (loss, tasks_preds) if return_predictions else (loss,)
+            
+        #     data = (flattened_outputs, flattened_labels) if flatten else (outputs, labels)
+        #     return result + (data,)
+     
+        # return outputs # (N, L, num_classes)
     
-    def get_loss(self, preds, labels):
+    def compute_loss_and_prediction(self, outputs, labels, return_pred = False):
         loss = 0
-        for pred, label, label_class, class_weight in zip(preds, labels, self.classes, self.class_weights):
-            if label_class and class_weight:
-                reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
-                loss += class_weight * self.loss_fn(reshaped_output, reshaped_label)
-        return loss
+        tasks_predictions = []
+        
+        for output, label, weight in zip(outputs, labels, self.class_weights):
+            if weight:
+                loss += weight * self.loss_fn(output, label)
+                if return_pred:
+                    pred = torch.max(output, dim = 1) if output.numel() > 0 else (torch.tensor([]), torch.tensor([]))
+                    predicted_class, prediction_score = pred[0].cpu().tolist(), pred[1].cpu().tolist()
+                    tasks_predictions.append((predicted_class, prediction_score))
+                    
+        return loss, tasks_predictions
     
-def flatten_output_and_label(output, label, num_classes=2):
-    output = output.view(-1, num_classes) # (N, L, num_classes) -> (N x L, num_classes)
-    label = label.view(-1) # (N, L) -> (N x L)
+
+def reshape_output_and_labels(output, label, num_classes=2, to_cpu = False):
+    output = output.view(-1, num_classes) if num_classes else torch.empty(0, dtype=torch.long)
+    label = label.view(-1) if num_classes else torch.empty(0, dtype=torch.long)
+    
     if num_classes == 2:
         label = (label > 0).long()
     
-    return output, label
+    return output, label.cpu().tolist() if to_cpu else label
 
+def process_task_outputs_and_labels(task_outputs, task_labels, task_classes, to_cpu=False):
+    return zip(*[reshape_output_and_labels(output, label, classes, to_cpu)
+                 for output, label, classes in zip(task_outputs, task_labels, task_classes)])
+    
+    
+    
+################# Old stuff #########################
 class SequenceTaggerWithBahdanauAttention(nn.Module):
 
     def __init__(self, input_size, num_classes, hidden_dim = 512):
@@ -224,7 +259,7 @@ class GeneralMulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
         loss = 0
         for pred, label, label_class, class_weight in zip(preds, labels, self.classes, self.class_weights):
             if label_class and class_weight:
-                reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
+                reshaped_output, reshaped_label = reshape_output_and_label(pred, label, len(label_class))
                 loss += class_weight * self.loss_fn(reshaped_output, reshaped_label)
         return loss
     
@@ -248,13 +283,13 @@ class GeneralMulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
         return (h_0, c_0)
     
 
-def flatten_output_and_label(output, label, num_classes=2):
-    output = output.view(-1, num_classes) # (N, L, num_classes) -> (N x L, num_classes)
-    label = label.view(-1) # (N, L) -> (N x L)
-    if num_classes == 2:
-        label = (label > 0).long()
+# def flatten_output_and_label(output, label, num_classes=2):
+#     output = output.view(-1, num_classes) # (N, L, num_classes) -> (N x L, num_classes)
+#     label = label.view(-1) # (N, L) -> (N x L)
+#     if num_classes == 2:
+#         label = (label > 0).long()
     
-    return output, label
+#     return output, label
 
 
 class MulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
@@ -338,7 +373,7 @@ class MulticlassSequenceTaggerWithBahdanauAttention(nn.Module):
     def get_loss(self, preds, labels):
         loss = 0
         for pred, label, label_class in zip(preds, labels, self.classes):
-            reshaped_output, reshaped_label = flatten_output_and_label(pred, label, len(label_class))
+            reshaped_output, reshaped_label = reshape_output_and_label(pred, label, len(label_class))
             print(reshaped_label)
             loss += self.loss_fn(reshaped_output, reshaped_label)
         return loss

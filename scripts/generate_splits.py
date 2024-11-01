@@ -2,11 +2,14 @@ import jsonlines
 from collections import OrderedDict
 import argparse
 import random
-from utility import make_dirs
 import gzip
 import re
+import logging
 from utility import parse_labels
 from tqdm import tqdm
+import sys
+
+logger = logging.getLogger("generate_splits.py")
 
 def random_subsequence(sequence, minimum_len, maximum_len):
     """Sample a random subsequence between minimum_len and maximum_len from the overall sequence.
@@ -112,59 +115,67 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="Sequence file")
-    parser.add_argument("--output", dest="output", help="Name for datapoints file")
-    parser.add_argument("--min_seq", type=int, default = 1, dest="min_len", help="Min len for sequence")
-    parser.add_argument("--max_seq", type=int, default = 10000, dest="max_len", help="Max len for sequence")
-    parser.add_argument("--sample_method", choices = ["from_beginning", "from_chapter_beginning", "random_subseq"], help = "Type of sampling: from beginning, from chapter_beginning, random_subseq")
-    parser.add_argument("--samples", type=int, dest="samples", help="Number of samples to take")
-    parser.add_argument("--seed", dest="seed", type=int)
+    parser.add_argument("--train", dest="train", help="Name for datapoints file")
+    parser.add_argument("--dev", dest="dev", help="Name for datapoints file")
+    parser.add_argument("--test", dest="test", help="Name for datapoints file")
+    parser.add_argument("--min_len", type=int, default = 1, dest="min_len", help="Min len for sequence")
+    parser.add_argument("--max_len", type=int, default = 10000, dest="max_len", help="Max len for sequence")
+    parser.add_argument(
+        "--sample_method",
+        choices = ["from_beginning", "from_chapter_beginning", "random_subseq"],
+        help = "Type of sampling: from beginning, from chapter_beginning, random_subseq"
+    )
+    parser.add_argument("--samples_per_document", type=int, dest="samples_per_document", help="Number of samples to take from each document")
+    parser.add_argument("--train_proportion", type=float, default=0.8)
+    parser.add_argument("--dev_proportion", type=float, default=0.1)
+    parser.add_argument("--test_proportion", type=float, default=0.1)
+    parser.add_argument("--random_seed", dest="random_seed", type=int)
     args, rest = parser.parse_known_args()
 
-    random.seed(args.seed)
+    if args.random_seed != None:
+        random.seed(args.random_seed)
 
-    make_dirs(args.output)
+    logging.basicConfig(level=logging.INFO)
+        
+    logger.info("Creating datapoints")
     
-    print("**Creating datapoints**")
-    
-    with gzip.open(args.input, "r") as input_file, open(args.output, mode="wt") as output_file:
-        with jsonlines.Reader(input_file) as input, jsonlines.Writer(output_file) as writer:
-            # For line in jsonlines
-            data = [] # datapoints for current book
-            for idx, doc in tqdm(enumerate(input)):
-                
-                zipped_lst = list(zip(
-                    doc["paragraph_labels"], 
-                    doc["chapter_labels"], 
-                    doc["flattened_sentences"], 
-                    doc["flattened_embeddings"]
-                ))
-
+    with gzip.open(args.input, "r") as ifd, gzip.open(args.train, mode="wt") as train_ofd, gzip.open(args.dev, mode="wt") as dev_ofd, gzip.open(args.test, mode="wt") as test_ofd:
+        with jsonlines.Reader(ifd) as input_reader, jsonlines.Writer(train_ofd) as train_writer, jsonlines.Writer(dev_ofd) as dev_writer, jsonlines.Writer(test_ofd) as test_writer:
+            counter = 0
+            for idx, doc in tqdm(enumerate(input_reader)):
+                zipped_lst = list(
+                    zip(
+                        doc["paragraph_labels"], 
+                        doc["chapter_labels"], 
+                        doc["flattened_sentences"], 
+                        doc["flattened_embeddings"]
+                    )
+                )
                 match args.sample_method:
                     case "random_subseq":
-                        sample_seqs = random_subsequences(zipped_lst, args.min_len, args.max_len, args.samples)
+                        sample_seqs = random_subsequences(zipped_lst, args.min_len, args.max_len, args.samples_per_document)
                     case _:
                         raise ValueError("Did not match sampling method")
-                    
+
                 for seq in sample_seqs:
                     paragraph_labels, chapter_labels, flattened_sentences, flattened_embeddings = zip(*seq)
                     datapoint = {
-                                    "metadata": doc["metadata"],
-                                    "granularity": doc["granularity"],
-                                    "paragraph_labels": paragraph_labels,
-                                    "chapter_labels": chapter_labels,
-                                    "flattened_sentences": flattened_sentences,
-                                    "flattened_embeddings": flattened_embeddings
-                                    }
-                    data.append(datapoint)
-                
-
-            random.shuffle(data)
-            print(f"Total data length : {len(data)}")
-
-            # Write resulting data
-            for d in data:
-                writer.write(d)
-                
+                        "metadata": doc["metadata"],
+                        "granularity": doc["granularity"],
+                        "paragraph_labels": paragraph_labels,
+                        "chapter_labels": chapter_labels,
+                        "flattened_sentences": flattened_sentences,
+                        "flattened_embeddings": flattened_embeddings
+                    }
+                    rv = random.random()
+                    if rv < args.train_proportion:
+                        train_writer.write(datapoint)
+                    elif rv < args.train_proportion + args.dev_proportion:
+                        dev_writer.write(datapoint)
+                    else:
+                        test_writer.write(datapoint)
+                    counter += 1
+            print(f"Total data length : {counter}")
                 
                 
 # # Based on matched_idxs, sample
