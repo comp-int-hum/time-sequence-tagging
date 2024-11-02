@@ -120,7 +120,7 @@ env = Environment(
         #     action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model ${MODEL} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS[0]} --errors ${TARGETS[1]} --batch ${BATCH} --confusion ${CM}",
         # ),
         "TrainSequenceModel": Builder(
-            action="python scripts/train_sequence_model.py --train ${SOURCES[0]} --dev ${SOURCES[1]} --test ${SOURCES[2]} --output ${TARGETS[0]} --model ${ARCHITECTURE} --num_epochs ${EPOCHS} --batch_size ${BATCH_SIZE} --dropout ${DROPOUT} --granularity ${GRANULARITY}"
+            action="python scripts/train_sequence_model.py --train ${SOURCES[0]} --dev ${SOURCES[1]} --test ${SOURCES[2]} --output ${TARGETS[0]} --model ${ARCHITECTURE} --num_epochs ${EPOCHS} --batch_size ${BATCH_SIZE} --dropout ${DROPOUT} --granularity ${GRANULARITY} --boundary_type ${BOUNDARY_TYPE}"
         ),
         # "GenerateReport": Builder(
         #     action="python scripts/generate_report.py --input ${SOURCES[0]} --output ${TARGETS} --pg_path ${PG_PATH}"
@@ -176,29 +176,20 @@ for model in env.get("MODELS", []):
                     MIN_LEN = min_seq,
                     MAX_LEN = max_seq,
                     SAMPLE_METHOD = "random_subseq",
-                    SAMPLES_PER_DOCUMENT = 20,
+                    SAMPLES_PER_DOCUMENT = 100,
                     TRAIN_PROPORTION = 0.8,
                     DEV_PROPORTION = 0.1,
                     TEST_PROPORTION = 0.1
                 )
-                #for experiment in env["EXPERIMENTS"]:
-                #    experiment_name = experiment["name"]
-                #    class_labels = experiment["labels"]
-
-                #    for model_name in env["MODEL_NAMES"]:
-                result = env.TrainSequenceModel(
-                    source = [train, dev, test],
-                    target = ["work/${MODEL_NAME}/${GRANULARITY}/${ARCHITECTURE}/model.bin"],
-                    #SAVE_NAME=f"work/experiments/trial_{n}/TrS-{train_sample_size}-{min_seq}-{max_seq}/{experiment_name}/{model_name}/best_model/model.pt",
-                    #VISUALIZATIONS=f"work/experiments/trial_{n}/TrS-{train_sample_size}-{min_seq}-{max_seq}/{experiment_name}/{model_name}/visualizations",
-                    MODEL_NAME = model["name"],
-                    ARCHITECTURE="lstm",
-                    GRANULARITY=granularity,
-                    #EMB_DIM = 768,
-                    BATCH_SIZE=32,
-                    #CLASSES = class_labels,
-                    #OUTPUT_LAYERS = 2,
-                    DROPOUT = 0.6
-                )
-                #experiment_results.append(result)
+                for boundary_type in ["chapter", "paragraph", "both"]:
+                    result = env.TrainSequenceModel(
+                        source = [train, dev, test],
+                        target = ["work/${MODEL_NAME}/${GRANULARITY}/${ARCHITECTURE}/${BOUNDARY_TYPE}/model.bin"],
+                        MODEL_NAME = model["name"],
+                        ARCHITECTURE="lstm",
+                        GRANULARITY=granularity,
+                        BOUNDARY_TYPE=boundary_type,
+                        BATCH_SIZE=1024,
+                        DROPOUT = 0.6
+                    )
                 

@@ -18,7 +18,11 @@ from collections import defaultdict
 import texttable as tt
 from torch.nn.functional import cross_entropy
 
-def unpack_data(datapoint):
+
+logger = logging.getLogger("train_sequence_model")
+
+
+def unpack_data(datapoint, boundary_type):
     """Unpack data from datapoint dict
 
     Args:
@@ -26,10 +30,12 @@ def unpack_data(datapoint):
 
     Returns:
         tuple: (embeddings, multiclass labels, metadata)
-    """    
-    return datapoint.pop("flattened_embeddings"), [datapoint["paragraph_labels"], datapoint["chapter_labels"]], datapoint
+    """
+    labels = [datapoint["paragraph_labels"], datapoint["chapter_labels"]] if args.boundary_type == "both" else [datapoint["{}_labels".format(args.boundary_type)]]
+    return datapoint.pop("flattened_embeddings"), labels, datapoint
 
-def get_batch(filepath, batch_size=32, device="cpu"):
+
+def get_batch(filepath, boundary_type, batch_size=32, device="cpu"):
     """Create batches based on file path and batch_size
 
     Args:
@@ -56,7 +62,7 @@ def get_batch(filepath, batch_size=32, device="cpu"):
     with open_file(filepath, "r") as source_file, jsonlines.Reader(source_file) as datapoints:
         for i, datapoint in enumerate(datapoints):
             total += 1
-            data, label, metadata = unpack_data(datapoint)
+            data, label, metadata = unpack_data(datapoint, boundary_type)
             
             # Append data
             data_batch.append(data)
@@ -73,6 +79,7 @@ def get_batch(filepath, batch_size=32, device="cpu"):
             append_data(data_batch, label_batch, metadata_batch)
 
     return (data_batches, label_batches), metadata_batches, total
+
 
 def run_model(model, optimizer, batches, device="cpu", is_train=True):
     """Evaluate model given batches, metadata, and class labels
@@ -92,8 +99,8 @@ def run_model(model, optimizer, batches, device="cpu", is_train=True):
     else:
         model.eval()
     
-    tasks_preds = []
-    tasks_labels = []
+    guesses = []
+    golds = []
     tasks_pred_scores = []
     running_loss = 0
     input_len = 0
@@ -114,88 +121,40 @@ def run_model(model, optimizer, batches, device="cpu", is_train=True):
             labels = torch.stack([l.to(device) for l in labels], 1)
 
             # Call  to forward (possible multi-class outputs)
-            #batch_loss, (flattened_outputs, flattened_labels) =
             out = model(input, device = device)
             loss = cross_entropy(torch.permute(out, (0, 3, 1, 2)), labels)
-            
-            if is_train:
-                
+            if is_train:                
                 loss.backward()
                 optimizer.step()
-            #continue
-            #print(out.shape)
-            #print(labels.shape)
-            
-            #sys.exit()
-            #if is_train:
-            #    batch_loss.backward()
-            #    optimizer.step()
             
             running_loss += loss.item()
             input_len += input.size(0)
-            
-            #max_values_indices = [
-            #    torch.max(flattened_output, dim=1) if flattened_output.numel() > 0 else (torch.tensor([]), torch.tensor([]))
-            #    for flattened_output in flattened_outputs
-            #]
 
-            # Separate the values and indices
-            #max_values = [max_val_ind[0].cpu().tolist() for max_val_ind in max_values_indices]
-            #indices = [max_val_ind[1].cpu().tolist() for max_val_ind in max_values_indices]
-            #labels_cpu = [label.cpu().tolist() for label in flattened_labels]
+            guesses.append(torch.argmax(out, dim=3))
+            golds.append(labels)
+                
+    guesses = torch.concat([torch.reshape(torch.permute(x, (0, 2, 1)), (-1, out.shape[1])) for x in guesses]).cpu()
+    golds = torch.concat([torch.reshape(torch.permute(x, (0, 2, 1)), (-1, out.shape[1])) for x in golds]).cpu()
 
-            #tasks_preds.append(indices)
-            #tasks_pred_scores.append(max_values)
-            #tasks_labels.append(labels_cpu)
-    
-    # Calculate final metrics
-    #tasks_labels = [sum(sublists, []) for sublists in zip(*tasks_labels)]
-    #tasks_preds = [sum(sublists, []) for sublists in zip(*tasks_preds)]
-    #tasks_pred_scores = [sum(sublists, []) for sublists in zip(*tasks_pred_scores)]
-    
-    return (running_loss / input_len) #, (tasks_labels, tasks_preds, tasks_pred_scores)
+    return ((running_loss / input_len), (guesses, golds))
     
 
-def get_task_metrics(task_labels, task_preds, label_groups, metrics):
-    task_metrics = {metric["func"].__name__: [] for metric in metrics}
-    
-    for true_labels, predicted_labels, class_labels in zip(task_labels, task_preds, label_groups):
-        if class_labels:
-            label_indices = list(range(len(class_labels)))
-            
-            for metric in metrics:
-                if "labels" in metric["kwargs"] and not metric["kwargs"]["labels"]:
-                    metric["kwargs"]["labels"] = label_indices
-                print(f"Metric func: {metric['func']}")
-                metric_result = metric["func"](y_true=true_labels, y_pred=predicted_labels, **metric["kwargs"])
-                task_metrics[metric["func"].__name__].append(metric_result)
-    
-    return task_metrics
-
-
-# all_metadata = [sent for batch in metadata for doc in batch for sent in doc["flattened_sentences"]]
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", dest = "train", help = "Train file")
     parser.add_argument("--dev", dest = "dev", help = "Dev file")
     parser.add_argument("--test", dest = "test", help = "Test file")
-    #parser.add_argument("--model_save_name", dest="model_name", help="Name of best model")
-    #parser.add_argument("--visualizations", dest = "visualizations", help = "Output directory path for visualizations and results")
-    #parser.add_argument("--output_data", dest = "output", help = "Output file for collating and reporting in later steps")
-    parser.add_argument("--output", dest = "output", help = "Output file")
+    parser.add_argument("--output", dest = "output", help = "Output file for trained model")
 
     # Model parameters
     parser.add_argument("--model", dest="model", help="Type of model, classifier vs sequence_tagger")
-    #parser.add_argument("--emb_dim", dest="emb_dim", type = int, help="size of sentence embedding")
-    #parser.add_argument("--output_layers", dest = "output_layers", type = int)
-    #parser.add_argument("--classes", dest = "classes", type = parse_labels, help = "What the class labels should look like")
 
     # Training params
     parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
     parser.add_argument("--batch_size", dest="batch_size", type = int, default=32, help="Batch size")
     parser.add_argument("--dropout", dest="dropout", type=float, default = 0.4)
-    parser.add_argument("--boundary_type", dest="boundary_type", default = "chapter")
+    parser.add_argument("--boundary_type", dest="boundary_type", default = "both", choices=["chapter", "paragraph", "both"])
     
     args, rest = parser.parse_known_args()
     
@@ -212,47 +171,31 @@ if __name__ == "__main__":
 
     best_accuracy = 0
 
-    #num_classes = len(args.classes)
+
+    task_names = {0 : "paragraph", 1 : "chapter"} if args.boundary_type == "both" else {0 : args.boundary_type}
+
     
     # Get batches
-    train_batches, train_metadata, train_size = get_batch(args.train, device = device)
-    dev_batches, dev_metadata, dev_size = get_batch(args.dev, batch_size = 1, device = device)
-    test_batches, test_metadata, test_size = get_batch(args.test, batch_size=1, device = device)
-
-
-    # Set models
-    #if "sequence_tagger_with_bahdanau_attention" == args.model:
-    #    model = SequenceTaggerWithBahdanauAttention(input_size = args.emb_dim, num_classes = num_classes)
-    #elif "multiclass_sequence_tagger_with_bahdanau_attention" == args.model:
-    #    model = GeneralMulticlassSequenceTaggerWithBahdanauAttention(input_size = args.emb_dim, label_classes = args.classes, label_class_weights = None, output_layers = args.output_layers, lstm_layers = 1)
-    #else:
+    train_batches, train_metadata, train_size = get_batch(args.train, args.boundary_type, batch_size=args.batch_size, device = device)
+    dev_batches, dev_metadata, dev_size = get_batch(args.dev, args.boundary_type, batch_size=args.batch_size, device = device)
 
     with gzip.open(args.train, "rt") as ifd:
         j = json.loads(ifd.readline())
         emb_dim = len(j["flattened_embeddings"][0])
 
-    if args.boundary_type in ["paragraph", "chapter"]:
-        num_classes = 3
-    else:
-        raise NotImplemented() # some combinations make sense, others don't
-        
+    task_sizes = [3, 3] if args.boundary_type == "both" else [3] # three classes (0, 1, 2) for both paragraph and sentence boundaries
     
     model = SequenceTagger(
-        task_sizes = [3, 3],
+        task_sizes = task_sizes,
         lstm_input_size = emb_dim,
-        #label_classes = num_classes,
-        #label_class_weights = None,
-        #output_layers = args.output_layers,
-        #lstm_layers = 2,
-        #dropout=args.dropout
+        dropout=args.dropout
     )
-    print(model)
+    logger.info("%s", model)
 
     model.to(device)
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    #optimizer = optim.SGD(model.parameters(), lr=0.01)
 
     without_improvement = 0
     
@@ -267,36 +210,40 @@ if __name__ == "__main__":
     for epoch in tqdm(range(num_epochs), desc = "Epochs"):
 
         # Training Loop
-        #epoch_train_loss, (train_labels, train_preds, train_pred_scores) =
-        train_loss = run_model(model, optimizer, train_batches, device = device, is_train=True)
+        train_loss, (train_guesses, train_golds) = run_model(model, optimizer, train_batches, device = device, is_train=True)
 
         # Dev Loop
-        #epoch_dev_loss, (dev_labels, dev_preds, dev_pred_scores) =
-        dev_loss = run_model(model, None, dev_batches, device = device, is_train=False)
+        dev_loss, (dev_guesses, dev_golds) = run_model(model, None, dev_batches, device = device, is_train=False)
 
-        # Calculate and save losses
-        train_losses.append(train_loss)
-        dev_losses.append(dev_loss)
-
-        print(f"Epoch: {epoch}, Train Loss: {train_loss}")
-        print(f"Epoch: {epoch}, Dev Loss: {dev_loss}")
-
+        logger.info("Epoch: %d, Train Loss: %.6f", epoch, train_loss)
+        logger.info("Epoch: %d, Dev Loss: %.6f", epoch, dev_loss)
+        for task in range(dev_guesses.shape[1]):
+            score = f1_score(dev_golds[:, task], dev_guesses[:, task], average="macro")
+            logger.info("Dev score on %s task: %.3f", task_names[task], score)
+            
         # Save best model based on dev
         if dev_loss < best_dev_loss:
             best_dev_loss = dev_loss
+            logger.info("Saving new best model")
             torch.save(model.state_dict(), args.output)
-
-        if abs(dev_loss - prev_dev_loss) < 0.0005:
-            without_improvement += 1
-        else:
             without_improvement = 0
+        else:
+            without_improvement += 1
+            logger.info("%d epochs without improvement", without_improvement)
 
-        prev_dev_loss = dev_loss
-
-        if without_improvement >= 20:
+        if without_improvement >= 10:
             break
 
     model.load_state_dict(torch.load(args.output))
-    #test_loss, (test_labels, test_preds, test_pred_scores) =
-    test_loss = run_model(model, None, test_batches, device = device, is_train=False)
-    print(test_loss)
+
+    if args.test:
+        test_batches, test_metadata, test_size = get_batch(args.test, args.boundary_type, batch_size=args.batch_size, device = device)
+        test_loss, (test_guesses, test_golds) = run_model(model, None, test_batches, device = device, is_train=False)
+        for task in range(test_guesses.shape[1]):
+            score = f1_score(test_golds[:, task], test_guesses[:, task], average="macro")
+            logger.info("Test score on %s task: %.3f", task_names[task], score)
+    else:
+        dev_loss, (dev_guesses, dev_golds) = run_model(model, None, dev_batches, device = device, is_train=False)
+        for task in range(dev_guesses.shape[1]):
+            score = f1_score(dev_golds[:, task], dev_guesses[:, task], average="macro")
+            logger.info("Final dev score on %s task: %.3f", task_names[task], score)
