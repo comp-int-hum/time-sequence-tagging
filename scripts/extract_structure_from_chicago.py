@@ -49,15 +49,16 @@ def get_sentences(paragraph):
     return nltk.sent_tokenize(text)
     
 def get_metadata(soup):
-    return {"title": soup.find("title").string if soup.find("title") else None,
-            "author": soup.find("author").persName.string if soup.find("author") else None,
-            "year": soup.find("publicationStmt").date.string if soup.find("publicationStmt") else None}
+    return {
+        "title": soup.find("title").string if soup.find("title") else None,
+        "author": soup.find("author").persName.string if soup.find("author") else None,
+        "year": soup.find("publicationStmt").date.string if soup.find("publicationStmt") else None
+    }
 
 def get_structure(soup, max_title_len, chapter_filters):
-    result = [{"chapter_name": chapter_name,
+    return [{"chapter_name": chapter_name,
               "structure": [get_sentences(par) for par in chapter]
               } for chapter_name, chapter in zip(*get_chapters(soup, max_title_len, chapter_filters))]
-    return result
     
 
 if __name__ == "__main__":
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", dest="output", help = "Output file containing extracted data")
     parser.add_argument("--output_catalog", dest="output_catalog", help = "Metadata of extracted files")
     parser.add_argument("--min_chapters", dest="min_chapters", type=int, default=3)
+    parser.add_argument("--max_title_len", dest="max_title_len", type=int, default=500)
     parser.add_argument("--chapter_filters", dest="chapter_filters", nargs = "*", default = [], help = "Chapter title filter patterns")
     args = parser.parse_args()
     
