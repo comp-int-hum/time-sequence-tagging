@@ -1,21 +1,5 @@
 import os
 import os.path
-# <<<<<<< HEAD
-# import logging
-# import random
-# import subprocess
-# import shlex
-# import gzip
-# import re
-# import functools
-# import time
-# import imp
-# import sys
-# import json
-
-# import jsonlines
-# =======
-# >>>>>>> main
 from steamroller import Environment
 
 vars = Variables("custom.py")
@@ -38,11 +22,8 @@ vars.AddVariables(
     ("DATA_ROOT", "", os.path.expanduser("~/corpora")),
     ("WW_DATAPATH", "", "/export/data/english/women_writers.tgz"), # correct
     ("GUTENBERG_PATH", "", "${DATA_ROOT}/gutenberg/"),
-#<<<<<<< HEAD
-#=======
     ("CHICAGO_PATH", "", "${DATA_ROOT}/us_novels_pre1927.zip"),
     ("TOY_PATH", "", "/work/toy_datasets/"),
-#>>>>>>> main
     ("LOCAL_DATA", "", ""),
     ("GUTENBERG_CATALOG", "", "pg_catalog.csv"),)
 
@@ -57,7 +38,7 @@ vars.AddVariables(
     ("SPLIT_RATIOS", "Ratios to use for train/dev/test", [0.8, 0.1, 0.1]),
     ("SAMPLES", "Number of chapters to sample from text", 5),
     ("EXPERIMENT_TYPE", "", "sequence_tagger"),  # sequence_tagger, cross-classifier, classifier, contrastive
-    ("SEQ_LENGTHS", "", [(30,40)]),
+    ("SEQ_LENGTHS", "", [(100, 100)]),
     ("TRAIN_SAMPLES", "How many samples to take from the train text ", [10]),
     (
         "MODELS",
@@ -69,7 +50,12 @@ vars.AddVariables(
             }
         ]
     ),
-    ("EPOCHS", "Number of epochs to train model", 100),
+    (
+        "MODEL_ARCHITECTURES",
+        "Sequence tagging model architectures to try",
+        ["lstm"] # "lstm", "minlstm",  mingru
+    ),
+    ("EPOCHS", "Number of epochs to train model", 30),
     ("EXPERIMENTS", "", []),
     ("TITLE_FILTERS", "", [".*\\bpoe(m|t|s).*", ".*\\bballad.*", ".*\\bverse.*"]),
     ("REQUIRED_PATTERNS", "", [".*fiction.*"]),
@@ -96,7 +82,6 @@ vars.AddVariables(
 
 env = Environment(
     variables=vars,
-    ENV=os.environ,
     BUILDERS={
         "ExtractStructureFromChicago" : Builder(
             action="python scripts/extract_structure_from_chicago.py --chicago_path ${CHICAGO_PATH} --output ${TARGETS[0]} --output_catalog ${TARGETS[1]} --min_chapters ${MIN_CHAPTERS} --chapter_filters ${CHAPTER_FILTERS}",
@@ -107,11 +92,17 @@ env = Environment(
         "GenerateSequence": Builder(
             action="python scripts/generate_sequence.py --input ${SOURCES} --output ${TARGETS[0]} --granularity ${GRANULARITY} --seed ${FOLDS}"
         ),
+        "GenerateSequenceHRNN": Builder(
+            action="python scripts/generate_sequence_hrnn.py --input ${SOURCES} --output ${TARGETS[0]} --granularity ${GRANULARITY} --seed ${FOLDS}"
+        ),
         # "CreateClassifierDatapoints": Builder(
         #     action="python scripts/create_datapoints.py --input ${SOURCES} --output ${TARGETS} --samples ${SAMPLES} --same ${SAME_CH} --context_size ${CONTEXT} --seed ${FOLDS} --min_len ${MIN_LEN}"
         # ),
         "GenerateSplits" : Builder(
             action="python scripts/generate_splits.py --input ${SOURCES[0]} --train ${TARGETS[0]} --dev ${TARGETS[1]} --test ${TARGETS[2]} --random_seed ${RANDOM_SEED} --min_len ${MIN_LEN} --max_len ${MAX_LEN} --sample_method ${SAMPLE_METHOD} --samples_per_document ${SAMPLES_PER_DOCUMENT} --train_proportion ${TRAIN_PROPORTION} --dev_proportion ${DEV_PROPORTION} --test_proportion ${TEST_PROPORTION}"
+        ),
+        "GenerateDocSplits" : Builder(
+            action="python scripts/generate_doc_splits.py --input ${SOURCES[0]} --train ${TARGETS[0]} --dev ${TARGETS[1]} --test ${TARGETS[2]} --random_seed ${RANDOM_SEED} --min_len ${MIN_LEN} --max_len ${MAX_LEN} --sample_method ${SAMPLE_METHOD} --samples_per_document ${SAMPLES_PER_DOCUMENT} --train_proportion ${TRAIN_PROPORTION} --dev_proportion ${DEV_PROPORTION} --test_proportion ${TEST_PROPORTION}"
         ),
         #"SampleSequence": Builder(
         #    action="python scripts/sample_sequence.py --input ${SOURCES} --output ${TARGETS} --min_seq ${MIN_SEQ} --max_seq ${MAX_SEQ} --sample_method ${SAMPLE_METHOD} --samples ${SAMPLES} --seed ${FOLDS} "
@@ -120,17 +111,41 @@ env = Environment(
         #     action="python scripts/train_model.py --train ${SOURCES[0]} --test ${SOURCES[1]} --model ${MODEL} --model_name ${SAVE_NAME} --emb_dim ${EMB_DIM} --num_epochs ${EPOCHS} --result ${TARGETS[0]} --errors ${TARGETS[1]} --batch ${BATCH} --confusion ${CM}",
         # ),
         "TrainSequenceModel": Builder(
-            action="python scripts/train_sequence_model.py --train ${SOURCES[0]} --dev ${SOURCES[1]} --test ${SOURCES[2]} --output ${TARGETS[0]} --model ${ARCHITECTURE} --num_epochs ${EPOCHS} --batch_size ${BATCH_SIZE} --dropout ${DROPOUT} --granularity ${GRANULARITY} --boundary_type ${BOUNDARY_TYPE}"
+            action= (
+                	"python scripts/train_sequence_model.py "
+            		"--train ${SOURCES[0]} "
+               		"--dev ${SOURCES[1]} "
+                 	"--test ${SOURCES[2]} "
+                  	"--output ${TARGETS[0]} "
+                    "--model ${ARCHITECTURE} "
+                    "--num_epochs ${EPOCHS} "
+                    "--batch_size ${BATCH_SIZE} "
+                    "--dropout ${DROPOUT} "
+                    "--granularity ${GRANULARITY} "
+                    "--boundary_type ${BOUNDARY_TYPE}"
+			)
         ),
+        "TrainHRNN": Builder(
+	    action= (
+       		"python scripts/train_generic_hrnn.py "
+                "--train ${SOURCES[0]} "
+                "--dev ${SOURCES[1]} "
+                "--test ${SOURCES[2]} "
+		"--visualization ${VISUALIZATION} "
+		"--teacher_ratio ${TEACHER_RATIO} "
+                "--output ${TARGETS[0]} "
+		"--num_epochs ${EPOCHS} "
+		"--batch_size ${BATCH_SIZE} "
+	    "--dropout ${DROPOUT}"
+            )
+	)
+
         # "GenerateReport": Builder(
         #     action="python scripts/generate_report.py --input ${SOURCES[0]} --output ${TARGETS} --pg_path ${PG_PATH}"
         # ),
         # "CollateResults": Builder(
         #     action="python scripts/collate_results.py --data ${SOURCES} --target ${TARGETS}"
         # ),
-        # "SanityCheck": Builder(
-        #     action="python scripts/sanity_check.py --splits ${SOURCES} --output ${TARGETS}"
-        # )
     }
 )
 
@@ -155,7 +170,9 @@ for model in env.get("MODELS", []):
     )
 
     for granularity in ["sentence"]:
-        seq_file = env.GenerateSequence(
+
+        seq_file = env.GenerateSequenceHRNN(
+
             source = [enc_texts],
             target = ["work/${MODEL_NAME}/${GRANULARITY}/sequence_embeddings.jsonl.gz"],
             MODEL_NAME=model["name"],
@@ -163,7 +180,7 @@ for model in env.get("MODELS", []):
         )
         for fold in range(env["FOLDS"]):
             for min_seq, max_seq in env["SEQ_LENGTHS"]:
-                train, dev, test = env.GenerateSplits(
+                train, dev, test = env.GenerateDocSplits(
                     source=seq_file,
                     target=[
                         "work/${MODEL_NAME}/${GRANULARITY}/train.jsonl.gz",
@@ -175,21 +192,24 @@ for model in env.get("MODELS", []):
                     RANDOM_SEED=fold,
                     MIN_LEN = min_seq,
                     MAX_LEN = max_seq,
-                    SAMPLE_METHOD = "random_subseq",
+                    SAMPLE_METHOD = "from_beginning",
                     SAMPLES_PER_DOCUMENT = 100,
                     TRAIN_PROPORTION = 0.8,
                     DEV_PROPORTION = 0.1,
                     TEST_PROPORTION = 0.1
                 )
-                for boundary_type in ["chapter", "paragraph", "both"]:
-                    result = env.TrainSequenceModel(
-                        source = [train, dev, test],
-                        target = ["work/${MODEL_NAME}/${GRANULARITY}/${ARCHITECTURE}/${BOUNDARY_TYPE}/model.bin"],
-                        MODEL_NAME = model["name"],
-                        ARCHITECTURE="lstm",
-                        GRANULARITY=granularity,
-                        BOUNDARY_TYPE=boundary_type,
-                        BATCH_SIZE=1024,
-                        DROPOUT = 0.6
-                    )
-                
+                result = env.TrainHRNN(
+                    source = [train, dev, test],
+                    target = ["work/${MODEL_NAME}/model_output.txt"],
+                    MODEL_NAME = model["name"],
+                    BATCH_SIZE = 1024,
+                    DROPOUT = 0.6,
+                    VISUALIZATION = f"work",
+                    TEACHER_RATIO = 0.8,
+                    EPOCHS = 20,
+                    STEAMROLLER_GPU_COUNT=1,
+		    STEAMROLLER_ACCOUNT=env.get("GPU_ACCOUNT", None),
+		    STEAMROLLER_QUEUE=env.get("GPU_QUEUE", None),
+		    STEAMROLLER_TIME = "12:00:00",
+		    STEAMROLLER_MEMORY="32G"
+                )
