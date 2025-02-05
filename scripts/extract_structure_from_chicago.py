@@ -38,7 +38,6 @@ def get_chapters(soup, max_title_len, chapter_filters):
             
     if first_match and curr_p_list:
         chapters.append(curr_p_list)
-        
     return (chapter_names, chapters)
 
 def get_sentences(paragraph):
@@ -59,7 +58,6 @@ def get_structure(soup, max_title_len, chapter_filters):
     return [{"chapter_name": chapter_name,
               "structure": [get_sentences(par) for par in chapter]
               } for chapter_name, chapter in zip(*get_chapters(soup, max_title_len, chapter_filters))]
-    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

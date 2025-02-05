@@ -143,23 +143,15 @@ if __name__ == "__main__":
         with jsonlines.Reader(ifd) as input_reader, jsonlines.Writer(train_ofd) as train_writer, jsonlines.Writer(dev_ofd) as dev_writer, jsonlines.Writer(test_ofd) as test_writer:
             counter = 0
             for idx, doc in tqdm(enumerate(input_reader)):
-                zipped_lst = list(
-                    zip(
-                        doc["paragraph_labels"], 
-                        doc["chapter_labels"], 
-                        doc["flattened_sentences"], 
-                        doc["flattened_embeddings"],
-                        doc["hierarchical_labels"]
-                    )
-                )
-                match args.sample_method:
-                    case "random_subseq":
-                        sample_seqs = random_subsequences(zipped_lst, args.min_len, args.max_len, args.samples_per_document)
-                    case "from_beginning":
-                        sample_seqs = sample_from_beginning(zipped_lst, args.min_len, args.max_len)
-                        print(type(sample_seqs))
-                    case _:
-                        raise ValueError("Did not match sampling method")
+                # zipped_lst = list(
+                #     zip(
+                #         doc["paragraph_labels"], 
+                #         doc["chapter_labels"], 
+                #         doc["flattened_sentences"], 
+                #         doc["flattened_embeddings"],
+                #         doc["hierarchical_labels"]
+                #     )
+                # )
                 rv = random.random()
                 if rv < args.train_proportion:
                     split_writer = train_writer
@@ -167,19 +159,19 @@ if __name__ == "__main__":
                     split_writer = dev_writer
                 else:
                     split_writer = test_writer
-                for seq in sample_seqs:
-                    paragraph_labels, chapter_labels, flattened_sentences, flattened_embeddings, hierarchical_labels = zip(*seq)
-                    datapoint = {
-                        "metadata": doc["metadata"],
-                        "granularity": doc["granularity"],
-                        "paragraph_labels": paragraph_labels,
-                        "chapter_labels": chapter_labels,
-                        "flattened_sentences": flattened_sentences,
-                        "flattened_embeddings": flattened_embeddings,
-                        "hierarchical_labels": hierarchical_labels
-                    }
-                    split_writer.write(datapoint)
-                    counter += 1
+                # paragraph_labels, chapter_labels, flattened_sentences, flattened_embeddings, hierarchical_labels = zip(*zipped_lst)
+                # datapoint = {
+                #     "metadata": doc["metadata"],
+                #     "granularity": doc["granularity"],
+                #     "paragraph_labels": paragraph_labels,
+                #     "chapter_labels": chapter_labels,
+                #     "flattened_sentences": flattened_sentences,
+                #     "flattened_embeddings": flattened_embeddings,
+                #     "hierarchical_labels": hierarchical_labels
+                # }
+                # split_writer.write(datapoint)
+                split_writer.write(doc)
+                counter += 1
             print(f"Total data length : {counter}")
                 
                 
