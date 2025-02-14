@@ -9,3 +9,9 @@ data
 .vscode*
 custom.py
 scripts/obs/*
+results/*
+test/*
+work-gutenberg/*
+full-run-10-samples/*
+test*
+scripts/visualize*

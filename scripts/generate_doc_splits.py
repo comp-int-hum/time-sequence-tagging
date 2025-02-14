@@ -142,6 +142,7 @@ if __name__ == "__main__":
     with gzip.open(args.input, "r") as ifd, gzip.open(args.train, mode="wt") as train_ofd, gzip.open(args.dev, mode="wt") as dev_ofd, gzip.open(args.test, mode="wt") as test_ofd:
         with jsonlines.Reader(ifd) as input_reader, jsonlines.Writer(train_ofd) as train_writer, jsonlines.Writer(dev_ofd) as dev_writer, jsonlines.Writer(test_ofd) as test_writer:
             counter = 0
+            train_docs, dev_docs, test_docs = 0, 0, 0
             for idx, doc in tqdm(enumerate(input_reader)):
                 # zipped_lst = list(
                 #     zip(
@@ -155,10 +156,13 @@ if __name__ == "__main__":
                 rv = random.random()
                 if rv < args.train_proportion:
                     split_writer = train_writer
+                    train_docs += 1
                 elif rv < args.train_proportion + args.dev_proportion:
                     split_writer = dev_writer
+                    dev_docs += 1
                 else:
                     split_writer = test_writer
+                    test_docs += 1
                 # paragraph_labels, chapter_labels, flattened_sentences, flattened_embeddings, hierarchical_labels = zip(*zipped_lst)
                 # datapoint = {
                 #     "metadata": doc["metadata"],
@@ -173,6 +177,8 @@ if __name__ == "__main__":
                 split_writer.write(doc)
                 counter += 1
             print(f"Total data length : {counter}")
+            assert train_docs * dev_docs * test_docs != 0
+            
                 
                 
 # # Based on matched_idxs, sample

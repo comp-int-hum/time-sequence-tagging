@@ -77,7 +77,7 @@ class HRNNCell(Module):
         updated_hidden_states = [torch.zeros_like(hidden_states[0]) for _ in range(self.num_layers)]
         
         # print(f"Hidden state 0 shape: {hidden_states[0].shape}")
-        # if teacher_forcing != None:
+        # if teacher_forcing is not None:
         #     print(f"teacher forcing shape: {teacher_forcing.shape}")
         cum_transition_probs = []
         cum_transition_preds = []
@@ -93,7 +93,7 @@ class HRNNCell(Module):
             #     print(f"Transition pred: {transition_pred.shape}")
             #     transition_pred = transition_pred.squeeze(dim = -1)
             
-            transition_prob = teacher_forcing[:, l].unsqueeze(dim = 1) if (teacher_forcing != None and l < teacher_forcing.shape[1]) else transition_pred
+            transition_prob = teacher_forcing[:, l].unsqueeze(dim = 1) if (teacher_forcing is not None and l < teacher_forcing.shape[1]) else transition_pred
             
             # update hidden states for layers m <= l
             for m in range(l + 1):

@@ -120,6 +120,46 @@ def flatten_to_sequence(chapters, granularity):
         
     return sequence_list
 
+def flatten_to_sequence_revised(chapters, granularity):
+    """Flatten embedded data structure into sequences. (Does not perform filtering.)
+
+    Args:
+        chapters (list): where each element is a dictionary representing one chapter in a text
+        granularity (int): where 0 represents a sentence and 1 a paragraph
+
+    Returns:
+        list: where each element is a list of tuples representing the sentences (or entirety) of a paragraph:
+            - ptag: 0 for in the middle of a paragraph, 1 for at the beginning, 2 for at the end
+            - chtag: 0 for in the middle of a chapter, 1 for at the beginning, 2 for at the end
+            - text: a list of sentences representing the paragraph
+            - embed: a list of embeddings for each sent (or an average of the embeddings in a paragraph)
+    """    
+    sequence_list = []
+    for ch in chapters:
+        paragraphs = ch["structure"]
+        num_paras = len(paragraphs)
+        # print(f"Num paras: {num_paras} in chapter: {ch['chapter_name']}")
+        
+        # Loop over paragraphs
+        for pnum, paragraph in enumerate(paragraphs): #(par_embeds, par_text) in enumerate(zip(paragraphed_embeds, paragraphed_text)):
+            ctag = get_ibe_tag(pnum)
+            # print(f"C tag: {ctag}")
+
+            # Loop over sentences and tag for beginning and endings of paragraphs
+            #par_len = len(par_embeds)
+            num_sents = len(paragraph)
+            for snum, sent in enumerate(paragraph): #(sent_embed, sent) in enumerate(zip(par_embeds, par_text)):
+                sent_embed = sent["embedding"]
+                sent_text = sent["text"]
+                
+                # Get sentence-level tag for paragraphs
+                ptag = get_ibe_tag(snum)
+                chtag = ptag if ctag == ptag else 0
+                # print((f"Ch tag: {chtag}"))
+                sequence_list.append((ptag, chtag, sent_text, sent_embed))
+        
+    return sequence_list
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -142,8 +182,9 @@ if __name__ == "__main__":
             #with open(args.readable, mode="wt") as readable, jsonlines.Writer(readable) as debug_writer:
             for idx, doc in enumerate(tqdm(reader, desc="Generating Sequences")):
                 if not args.cluster or args.cluster == int(doc["cluster"]):
-                    sequence_list = flatten_to_sequence(doc["chapters"], args.granularity)
+                    sequence_list = flatten_to_sequence_revised(doc["chapters"], args.granularity)
                     plabels, clabels, flattened_sentences, flattened_embeddings = zip(*sequence_list)
+                    print(f"Number of clabels: {sum(clabels)}")
                     if sequence_list:
                         sequenced_text = {
                             "metadata": doc["metadata"],
@@ -154,7 +195,6 @@ if __name__ == "__main__":
                             "flattened_sentences": flattened_sentences,
                             "flattened_embeddings": flattened_embeddings,
                             "hierarchical_labels": [[p, c] for p, c in zip(plabels, clabels)],
-                            "blank": []
                         }
 
                         compressed_writer.write(sequenced_text)

@@ -2,7 +2,6 @@ import argparse
 import jsonlines 
 import random
 import gzip
-from create_datapoints import average_embeddings
 from utility import open_file
 from tqdm import tqdm
 
@@ -25,6 +24,26 @@ QUOTE_PUNCTS = [
     "„", "”", "‚"      
 ]
 
+# def get_ibe_tag(ele_num, seq_len):
+#     """Get inside, beginning, ending tag for a paragraph or chapter.
+
+#     Args:
+#         num (int): The index of the element in the sequence
+#         seq_len (int): The total length of the sequence
+
+#     Returns:
+#         int: (0) for inside, (1) for beginning / boundary, (2) for ending
+#     """    
+#     tag = 0
+#     # if (seq_len == 1):
+#     #     tag = 3
+#     if ele_num == 0:
+#         tag = 1
+#     elif ele_num == (seq_len - 1):
+#         tag = 2
+#     else:
+#         tag = 0
+#     return tag
 
 def get_ibe_tag(ele_num, seq_len):
     """Get inside, beginning, ending tag for a paragraph or chapter.
@@ -37,8 +56,6 @@ def get_ibe_tag(ele_num, seq_len):
         int: (0) for inside, (1) for beginning / boundary, (2) for ending
     """    
     tag = 0
-    # if (seq_len == 1):
-    #     tag = 3
     if ele_num == 0:
         tag = 1
     elif ele_num == (seq_len - 1):
@@ -46,6 +63,9 @@ def get_ibe_tag(ele_num, seq_len):
     else:
         tag = 0
     return tag
+
+def average_embeddings(sent_embeddings):
+    return [sum(parameter) / len(sent_embeddings) for parameter in zip(*sent_embeddings)] if sent_embeddings else None
 
 def validate_paragraph(paragraph, min_par_len):
     if len(paragraph) < min_par_len or not (validate_sentence(paragraph[0]) and validate_sentence(paragraph[-1])):
@@ -114,8 +134,6 @@ def flatten_to_sequence(chapters, granularity):
         
     return sequence_list
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="Encoded file")
@@ -147,7 +165,8 @@ if __name__ == "__main__":
                             "paragraph_labels": plabels,
                             "chapter_labels": clabels,
                             "flattened_sentences": flattened_sentences,
-                            "flattened_embeddings": flattened_embeddings
+                            "flattened_embeddings": flattened_embeddings,
+                            "hierarchical_labels": [[p, c] for p, c in zip(plabels, clabels)]
                         }
 
                         compressed_writer.write(sequenced_text)
