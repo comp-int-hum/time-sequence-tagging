@@ -1,7 +1,7 @@
 import argparse
 import json
 import os
-from utility import make_dirs
+from utility import make_parent_dirs_for_files
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 import torch
@@ -9,7 +9,7 @@ import re
 import numpy as np
 import pickle
 import torch.nn.utils.rnn as rnn_utils
-from itertools import accumulate
+from batch_utils import unbatch
 
 def sanitize_filename(title, max_length=255):
     sanitized = re.sub(r'[\/:*?"<>|]', '_', title)
@@ -22,112 +22,10 @@ def build_visualization_output_name(root_dir, title, author):
     os.makedirs(os.path.dirname(vis_path_name), exist_ok=True)
     return vis_path_name
 
-def get_general_roc_curve(guesses, golds, true_lengths, save_path):
-    """_summary_
-
-    Args:
-        guesses (List): (seq_len, num_layers - 1)
-        golds (List): (seq_len, num_layers - 1)
-        true_lengths (List[Int]): true_length for each
-        save_path (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    unpadded_guesses = []
-    unpadded_golds = []
-    for guess, gold, true_length in zip(guesses, golds, true_lengths):
-        unpadded_guesses.append(guess[:, :true_length, :].flatten())
-        unpadded_golds.append(gold[:, :true_length, :].flatten())
-        
-    scores = torch.cat(unpadded_guesses, dim = 0).numpy()
-    true_labels = torch.cat(unpadded_golds, dim = 0).numpy()
+def build_text_name(title, author):
+    return sanitize_filename(f"{title}-{author}")
     
-    fpr, tpr, thresholds = roc_curve(true_labels, scores)
-    roc_auc = auc(fpr, tpr)
-    display = RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=roc_auc,
-                                      estimator_name='General estimator')
-    display.plot()
-    plt.show()
-    plt.savefig(save_path)
-    return (fpr, tpr, thresholds)
-
-def get_separated_roc_curves(guesses, golds, true_lengths, save_paths):
-    """_summary_
-
-    Args:
-        guesses (List): (batch_size, seq_len, num_layers - 1)
-        golds (List): (batch_size, seq_len, num_layers - 1)
-        true_lengths (List[Int]): true_length for each
-        save_paths (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    batch_size, seq_len, num_layers = guesses[0].shape
-    
-    unpadded_guesses = []
-    unpadded_golds = []
-    for guess, gold, true_length in zip(guesses, golds, true_lengths):
-        unpadded_guesses.extend(rnn_utils.unpad_sequence(guess, torch.Tensor(true_length), batch_first = True))
-        unpadded_golds.extend(rnn_utils.unpad_sequence(gold, torch.Tensor(true_length), batch_first = True))
-        # guess[:, :true_length, :].view(-1, num_layers))
-        # unpadded_golds.append(gold[:, :true_length, :].view(-1, num_layers))
-        
-    scores = torch.cat(guesses, dim = 0)
-    true_labels = torch.cat(golds, dim = 0)
-    
-    layer_stats = []
-    # (f"NUM LAYERS IN SEPARATED: {num_layers}")
-    for l in range(num_layers):
-        fpr, tpr, thresholds = roc_curve(true_labels[:, :, l].numpy(), scores[:, :, l].numpy(), pos_label=1)
-        roc_auc = auc(fpr, tpr)
-        layer_stats.append((fpr, tpr, thresholds))
-        
-        display = RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=roc_auc,
-                                      estimator_name=f'Layer {l} estimator')
-        display.plot()
-        plt.show()
-        plt.savefig(save_paths[l])
-        
-    return layer_stats
-
-def plot_and_save_roc(true_labels, scores, estimator_name, save_path):
-    fpr, tpr, thresholds = roc_curve(true_labels, scores, pos_label = 1)
-    roc_auc = auc(fpr, tpr)
-    display = RocCurveDisplay(fpr=fpr,
-                              tpr=tpr,
-                              roc_auc=roc_auc,
-                              estimator_name = estimator_name)
-    display.plot()
-    plt.show()
-    plt.savefig(save_path)
-    return (fpr, tpr, thresholds)
-
-def get_roc_curves(guesses, golds, true_lengths, save_paths):
-    batch_size, seq_len, num_layers = guesses[0].shape
-    unpadded_guesses = []
-    unpadded_golds = []
-    for guess, gold, true_length in zip(guesses, golds, true_lengths):
-        unpadded_guesses.extend(rnn_utils.unpad_sequence(guess, torch.Tensor(true_length), batch_first = True))
-        unpadded_golds.extend(rnn_utils.unpad_sequence(gold, torch.Tensor(true_length), batch_first = True))
-        
-    scores = torch.cat(unpadded_guesses, dim = 0) # (-1, num_layers - 1)
-    true_labels = torch.cat(unpadded_golds, dim = 0) # (-1, num_layers - 1)
-    
-    assert scores.shape == true_labels.shape
-    
-    general_roc_stats = plot_and_save_roc(true_labels.flatten().numpy(), scores.flatten().numpy(), "General Estimator", save_paths[0])
-    
-    layer_stats = []
-    for l in range(num_layers):
-        layer_roc_stats = plot_and_save_roc(true_labels[:, l].numpy(), scores[:, l].numpy(), f"Layer {l} estimator", save_paths[l + 1])
-        layer_stats.append(layer_roc_stats)
-        
-    return (general_roc_stats, layer_stats)
-
-
-def create_boundary_visualization(boundary_pred, boundary_gold, true_length, save_path):
+def create_boundary_visualization(boundary_pred, boundary_gold, true_length, text_name, save_path):
     """
     boundary_pred: (seq_len, num_layers),
     boundary_gold: (seq_len, num_layers)
@@ -170,9 +68,9 @@ def create_boundary_visualization(boundary_pred, boundary_gold, true_length, sav
     plt.figure(figsize=(64, 48))
     plt.imshow(interleaved_boundaries, aspect="auto", cmap="coolwarm", interpolation = "none")
     plt.colorbar(label="Boundary Prediction Value")
-    plt.title("Boundary Visualization")
-    plt.xlabel("num_layers - 1")
-    plt.ylabel("Sequence Length (seq_len)")
+    plt.title(f"Boundary Visualization - {text_name}")
+    plt.xlabel("Sequence Length (sentences)")
+    plt.ylabel("Hierarchical Layers")
     
     tick_labels = [f"Pred{i//2}" if i % 2 == 0 else f"Gold{i//2}" for i in range(2 * num_layers)]
     plt.yticks(range(2 * num_layers), tick_labels)
@@ -181,114 +79,41 @@ def create_boundary_visualization(boundary_pred, boundary_gold, true_length, sav
     plt.show()
     plt.savefig(save_path)
 
-def get_confusion_matrix(guesses, golds, true_lengths, sentences, metadata, top_k = 10, threshold = 0.5):
-    batch_size, seq_len, num_layers = guesses[0].shape
-
-    # Unpad guesses and gold labels
-    unpadded_guesses = []
-    unpadded_golds = []
-    
-    flattened_true_lengths = [t for batch in true_lengths for t in batch]
-    cumulative_lengths = list(accumulate(flattened_true_lengths))
-        
-    for guess, gold, true_length in zip(guesses, golds, true_lengths):
-        unpadded_guesses.extend(rnn_utils.unpad_sequence(guess, torch.Tensor(true_length), batch_first=True))
-        unpadded_golds.extend(rnn_utils.unpad_sequence(gold, torch.Tensor(true_length), batch_first=True))
-
-    scores = torch.cat(unpadded_guesses, dim=0)  # Shape: (-1, num_layers)
-    true_labels = torch.cat(unpadded_golds, dim=0)  # Shape: (-1, num_layers)
-
-    flattened_sentences = [sentence for batch in sentences for sublist in batch for sentence in sublist]  # Flatten sentences
-    flattened_metadata = [d for batch in metadata for d in batch]
-    layer_stats = []
-
-    for l in range(num_layers):
-        layer_scores = scores[:, l]
-        layer_labels = true_labels[:, l]
-
-        # probabilities = layer_scores  # torch.sigmoid(layer_scores)
-        # Do we want to use raw logits instead?
-
-        predictions = (layer_scores > threshold).long()
-        correct_indices = (predictions == layer_labels).nonzero(as_tuple=True)[0] # should be in sorted order
-        incorrect_indices = (predictions != layer_labels).nonzero(as_tuple=True)[0]
-        
-        num_correct = min(correct_indices.numel(), top_k)
-        num_incorrect = min(incorrect_indices.numel(), top_k)
-        
-        def get_confidence_with_sentence(indices):
-            metadata_idx = 0
-            entry_dict = []
-            for idx in indices:
-                if idx >= cumulative_lengths[metadata_idx]:
-                    metadata_idx += 1
-                
-                entry_dict.append(
-                    {
-                        "confidence": layer_scores[idx].item(),
-                        "sentence": flattened_sentences[idx],
-                        "metadata": flattened_metadata[metadata_idx]
-                    })
-            return sorted(entry_dict, key=lambda x: x["confidence"])
-
-        most_confident_correct = get_confidence_with_sentence(correct_indices)[-num_correct:] if correct_indices.numel() > 0 else None
-        least_confident_correct = get_confidence_with_sentence(correct_indices)[:num_correct] if correct_indices.numel() > 0 else None
-
-        most_confident_incorrect = get_confidence_with_sentence(incorrect_indices)[-num_incorrect:] if incorrect_indices.numel() > 0 else None
-        least_confident_incorrect = get_confidence_with_sentence(incorrect_indices)[:num_incorrect] if incorrect_indices.numel() > 0 else None
-        
-        print(f"Most confident: {most_confident_correct}")
-        layer_stats.append({
-            "layer": l,
-            "most_confident_correct": most_confident_correct,
-            "least_confident_correct": least_confident_correct,
-            "most_confident_incorrect": most_confident_incorrect,
-            "least_confident_incorrect": least_confident_incorrect,
-        })
-
-    return layer_stats
-
+def construct_visualizations(batched_model_outputs, hrnn_visualization_paths):
+    vis_count = 0
+    vis_total = len(args.hrnn_visualizations)
+    for (guess_batch, gold_batch, meta_batch, length_batch) in zip(batched_model_outputs["guesses"],
+                                                                   batched_model_outputs["golds"],
+                                                                   batched_model_outputs["metadata"],
+                                                                   batched_model_outputs["lengths"]):
+        for (guess, gold, meta, length) in zip(guess_batch, gold_batch, meta_batch, length_batch):
+            if vis_count >= vis_total:
+                return
+            
+            text_name = build_text_name(meta['title'], meta['author'])
+            create_boundary_visualization(guess, gold, length, text_name, save_path = hrnn_visualization_paths[vis_count])
+            vis_count += 1
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest = "input", help = "Filepath for data containing training outputs")
-    parser.add_argument("--layer_names", dest = "layer_names", nargs = "+", default = ["paragraphs", "chapters"], help = "Names of hierarchical layers in model")
-    parser.add_argument("--visualization", dest = "visualization", help = "Visualization output path")
-    parser.add_argument("--confusion_matrix", dest = "confusion_matrix")
-    parser.add_argument("--vis_num", type = int, help = "Number of samples to visualize")
+    parser.add_argument("--hrnn_visualizations", dest = "hrnn_visualizations", nargs = "+", help = "HRNN visualizations")
+    parser.add_argument("--hrnn_layer_names", dest = "hrnn_layer_names", nargs = "+", default = ["paragraphs", "chapters"], help = "Names of hierarchical layers in model")
     parser.add_argument("--threshold", type = float, default = 0.5, help = "Boundary decision threshold")
     args = parser.parse_args()
     
+    make_parent_dirs_for_files(args.hrnn_visualizations)
+    print(f"HRNN Visualizations: {args.hrnn_visualizations}")
     with open(args.input, "rb") as input_file:
-        train_outputs = pickle.load(input_file)
-        seq_len, num_layers_minus_one = train_outputs["train_guesses"][0][0].shape
+        batched_model_outputs = pickle.load(input_file)
+        seq_len, num_layers_minus_one = batched_model_outputs["guesses"][0][0].shape
     
-    print(f"Seq len: {seq_len}")
-    print(f"Num layers minus one: {num_layers_minus_one}")
-    os.makedirs(args.visualization, exist_ok=True)
+    assert len(args.hrnn_layer_names) == num_layers_minus_one, "Number of hierarchical layer names provided does not match layers in guesses"
     
-    assert len(args.layer_names) == num_layers_minus_one, "Number of hierarchical layer names provided does not match layers in guesses"
+    predictions = unbatch(batched_model_outputs)
     
-    roc_save_paths = [f"{args.visualization}/general_roc_curve.png"] + [f"{args.visualization}/roc_curve_for_{args.layer_names[l]}.png" for l in range(num_layers_minus_one)]
+    print(type(predictions["cumulative_lengths"]))
     
-    (dev_roc_stats, layer_stats) = get_roc_curves(train_outputs["dev_guesses"],
-                                                  train_outputs["dev_golds"],
-                                                  train_outputs["dev_lengths"],
-                                                  roc_save_paths)
-    
-    with open(args.confusion_matrix, "wt") as confusion_matrix_output:
-        layer_stats = get_confusion_matrix(train_outputs["dev_guesses"],
-                                           train_outputs["dev_golds"],
-                                           train_outputs["dev_lengths"],
-                                           train_outputs["dev_sentences"],
-                                           train_outputs["dev_metadata"],
-                                           top_k = 5,
-                                           threshold = args.threshold)
-        json.dump(layer_stats, confusion_matrix_output)
+    construct_visualizations(batched_model_outputs, args.hrnn_visualizations)
         
-    for i, (dev_guess, dev_gold, dev_meta, dev_lengths) in enumerate(list(zip(train_outputs["dev_guesses"],
-                                                                              train_outputs["dev_golds"],
-                                                                              train_outputs["dev_metadata"],
-                                                                              train_outputs["dev_lengths"]))[:args.vis_num]):
-        output_name = build_visualization_output_name(args.visualization, dev_meta[0]['title'], dev_meta[0]['author'])
-        create_boundary_visualization(dev_guess[0], dev_gold[0], dev_lengths[0], save_path = output_name)
+    

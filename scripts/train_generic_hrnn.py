@@ -1,25 +1,21 @@
 import argparse
 import torch
-import jsonlines
 import torch.nn as nn
 import torch.optim as optim
-from utility import open_file, make_dirs
-import torch.nn.utils.rnn as rnn_utils
-import numpy as np
+from utility import make_parent_dirs_for_files
 import logging
 from tqdm import tqdm
 import gzip
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
-from collections import defaultdict
+from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score # , ConfusionMatrixDisplay, confusion_matrix,
 import texttable as tt
 from generic_hrnn import GenericHRNN
-import matplotlib.pyplot as plt
 import texttable as tt
 import json
 import pickle
 import os
 import torch
-import matplotlib.pyplot as plt
+from batch_utils import get_batch, unpad_predictions
+from evaluate import get_f1_score, apply_metrics
 
 logger = logging.getLogger("train_sequence_model")
 
@@ -28,127 +24,59 @@ def calculate_loss(predictions, teacher_labels, layer_weights, balance_pos_neg =
     predictions: transition_probs (batch_size, seq_len, num_layers - 1)
     teacher_labels: Tensor of true labels (shape: batch_si[[ze, seq_len, num_layers-1)
     layer_weights: List: (num_layers - 1)
-    """
     
-    layer_weights_tensor = torch.tensor(layer_weights, dtype=predictions.dtype, device = device)
+    Returns:
+       overall_loss: elementwise loss (averaged over sequence and batch)
+       loss_per_layer: elementwise loss for each layer (num_layers - 1)
+    """
+    # Get tensor shapes/dims
     assert predictions.shape == teacher_labels.shape, "Shape mismatch between predictions and teacher labels"
     batch_size, seq_len, num_layers_minus_one = predictions.shape
     
+    # Reshape preds and labels
     predictions = predictions.view(-1, num_layers_minus_one) # (batch_size * seq_len, num_classes)
     teacher_labels = teacher_labels.view(-1, num_layers_minus_one) # (batch_size * seq_len, num_classes)
     
+    # Get layer weights and convert to tensor
+    layer_weights_tensor = torch.tensor(layer_weights, dtype=predictions.dtype, device = device)
+    
+    # Define loss function
     loss_fn = nn.BCELoss(reduction = "none")
-
-    pos_mask = (teacher_labels == 1).float()
-    neg_mask = (teacher_labels == 0).float()
-
-    ele_loss = loss_fn(predictions, teacher_labels.float())
     
-    print(f"ele loss shape: {ele_loss.shape}")
-    print(f"Layer weight tensor: {layer_weights_tensor.shape}")
+    # Get loss per element
+    ele_loss = loss_fn(predictions, teacher_labels.float()) # (batch_size * seq_len, num_classes)
     
-    weighted_loss = ele_loss * layer_weights_tensor # broadcasting across last dim = num_classes
+    # Weight loss with layer_weights --> broadcasting across last dim = num_classes: (batch_size * seq_len, num_classes)
+    weighted_loss = ele_loss * layer_weights_tensor
     
-    layerwise_loss = weighted_loss.mean(dim=0)  # (num_layers - 1) layers
-    
+    # Positive / negative balancing
     if balance_pos_neg:
         assert len(balance_pos_neg) == 2
-        pos_neg_weights = torch.tensor(balance_pos_neg, dtype=predictions.dtype, device = device)
-        pos_loss_per_layer = (pos_mask * weighted_loss).sum(dim=0) / (pos_mask.sum(dim=0) + 1e-6) * pos_neg_weights[0]
-        neg_loss_per_layer = (neg_mask * weighted_loss).sum(dim=0) / (neg_mask.sum(dim=0) + 1e-6) * pos_neg_weights[1]
         
+        pos_weight = torch.tensor(balance_pos_neg[0], dtype = predictions.dtype, device = device)
+        neg_weight = torch.tensor(balance_pos_neg[1], dtype = predictions.dtype, device = device)
+        
+        # Get masks
+        pos_mask = (teacher_labels == 1).float()
+        neg_mask = (teacher_labels == 0).float()
+        
+        # Pos and neg losses per layer
+        pos_loss_per_layer = (pos_mask * weighted_loss).sum(dim=0) / (pos_mask.sum(dim=0) + 1e-6) * pos_weight # (num_classes)
+        neg_loss_per_layer = (neg_mask * weighted_loss).sum(dim=0) / (neg_mask.sum(dim=0) + 1e-6) * neg_weight # (num_classes)
+        
+        # TODO: fix this --> the balancing doesn't make sense
         overall_loss = (pos_loss_per_layer.mean() + neg_loss_per_layer.mean()) / 2
         loss_per_layer = (pos_loss_per_layer + neg_loss_per_layer) / 2  # Loss for each layer
     else:
         overall_loss = weighted_loss.mean()
-        loss_per_layer = layerwise_loss
+        
+        # Reduce dim = 0 (aka non-num_classes)
+        loss_per_layer = weighted_loss.mean(dim=0)
 
     return overall_loss, loss_per_layer
 
-    # if balance_pos_neg:
-    #     pos_loss = (pos_mask * weighted_loss).sum() / (pos_mask.sum() + 1e-6)
-    #     neg_loss = (neg_mask * weighted_loss).sum() / (neg_mask.sum() + 1e-6)
-    #     return (pos_loss + neg_loss) / 2
-    # else:
-    #     return weighted_loss.mean()
 
-def unpack_data(datapoint):
-    """Unpack data from datapoint dict
-
-    Args:
-        datapoint (dict): a dictionary representing a sequence from a text and its metadata
-
-    Returns:
-        tuple: (embeddings, multiclass labels, metadata)
-    """
-    # labels = [datapoint["paragraph_labels"], datapoint["chapter_labels"]] if args.boundary_type == "both" else [datapoint["{}_labels".format(args.boundary_type)]]
-    # return datapoint.pop("flattened_embeddings"), labels, datapoint
-    return datapoint["flattened_embeddings"], datapoint["hierarchical_labels"], datapoint["metadata"], datapoint["flattened_sentences"]
-
-
-def get_batch(filepath, batch_size=32, device="cpu"):
-    """Create batches based on file path and batch_size
-
-    Args:
-        filepath (str): filepath to data
-        batch_size (int, optional): Batch size for model training. Defaults to 32.
-        device (str, optional): Device to move tensors to. Defaults to "cpu".
-
-    Returns:
-        tuple: (data_batches, label_batches), metadata_batches
-    """
-    data_batches, label_batches, metadata_batches, length_batches, sentence_batches = [], [], [], [], []
-    data_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
-    
-    # Helper function for appending batches and padding if model_type is sequence_tagger
-    def append_data(batch_data, batch_label, batch_metadata, batch_sentence):
-        # print(f"Batch data type: {type(batch_data)}")
-        # print(f"Sample batch data: {batch_data}")
-        batch_lengths = [len(l) for l in batch_label]
-        batch_data = rnn_utils.pad_sequence([torch.tensor(d) for d in batch_data], batch_first=True) # [batch_size, seq_len, emb_size]
-        print(f"Batch data shape: {batch_data.shape}")
-        batch_label = rnn_utils.pad_sequence([torch.tensor(l) for l in batch_label], batch_first=True).to(device)
-        print(f"Batch label shape: {batch_label.shape}")
-        # [batch_size, seq_len, num_layers]
-        
-        data_batches.append(batch_data.to(device))
-        label_batches.append(batch_label)
-        metadata_batches.append(batch_metadata)
-        length_batches.append(batch_lengths)
-        sentence_batches.append(batch_sentence)
-        
-    # Open data file
-    total = 0
-    with open_file(filepath, "r") as source_file, jsonlines.Reader(source_file) as datapoints:
-        for i, datapoint in enumerate(datapoints):
-            total += 1
-            data, label, metadata, sentences = unpack_data(datapoint)
-            
-            # Append data
-            data_batch.append(data)
-            label_batch.append(label)
-            metadata_batch.append(metadata)
-            sentence_batch.append(sentences)
-            
-            # Add batch if batch_sized has been reached
-            if len(data_batch) == batch_size:
-                append_data(data_batch, label_batch, metadata_batch, sentence_batch)
-                data_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
-        
-        # Add leftover data items to a batch
-        if data_batch:
-            append_data(data_batch, label_batch, metadata_batch, sentence_batch)
-
-    return {
-        "inputs": (data_batches, label_batches),
-        "sentences": sentence_batches,
-        "metadata": metadata_batches,
-        "lengths": length_batches,
-        "count": total
-    }
-
-
-def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device="cpu", is_train=True, teacher_ratio = 0.6):
+def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device="cpu", is_train=True, teacher_ratio = 0.6, temperature = 1.0):
     """Evaluate model given batches, metadata, and class labels
 
     Args:
@@ -170,7 +98,6 @@ def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device=
     golds = []
     layer_losses = []
     running_loss = 0
-    input_len = 0
     
     with torch.set_grad_enabled(is_train):
         for input, labels in tqdm(zip(*batches), desc = "Prediction loop"):
@@ -186,11 +113,8 @@ def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device=
             # Move to device
             input = input.to(device)
             
-            out = model(input, teacher_forcing = labels, teacher_ratio = teacher_ratio)
+            out = model(input, teacher_forcing = labels, teacher_ratio = teacher_ratio, temperature = temperature)
             loss, loss_per_layer = calculate_loss(out, labels, layer_weights, balance_pos_neg, device)
-            
-            # print(f"Model out: {out.shape}")
-            # print(f"Labels: {labels.shape}")
             
             golds.append(labels.detach().cpu())
             guesses.append(out.detach().cpu())
@@ -201,40 +125,26 @@ def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device=
                 optimizer.step()
             
             running_loss += loss.item()
-            input_len += input.size(0)
     
-    return (running_loss / input_len), torch.stack(layer_losses).mean(dim=0).tolist(), (guesses, golds)
-
-def get_f1_score(guesses, golds):
-    
-    f1_scores = []
-    num_els = 0
-    for guess, gold in zip(guesses, golds):
-        batch_size = guess.shape[0]
-        
-        guesses_thresholded = (guess > 0.5).int()
-        
-        flattened_guesses = guesses_thresholded.view(-1).numpy()
-        flattened_golds = gold.int().view(-1).numpy()
-        
-        f1_scores.append(batch_size * f1_score(flattened_golds, flattened_guesses))
-        num_els += batch_size
-    
-    return sum(f1_scores) / num_els if num_els > 0 else 0
+    return (running_loss / len(batches)), torch.stack(layer_losses).mean(dim=0).tolist(), (guesses, golds)
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", dest = "train", help = "Train file")
     parser.add_argument("--dev", dest = "dev", help = "Dev file")
-    parser.add_argument("--test", dest = "test", help = "Test file")
     
-    parser.add_argument("--output", dest = "output", help = "Output file for trained model")
-    parser.add_argument("--results", dest = "results", help = "Results (text) file")
+    parser.add_argument("--train_output", dest = "train_output", help = "Train data output")
+    parser.add_argument("--dev_output", dest = "dev_output", help = "Dev data output")
+    parser.add_argument("--training_summary", dest = "training_summary", help = "Training summary results file")
+    parser.add_argument("--training_stats", dest = "training_stats", help = "Training statistics (loss, metrics)")
     parser.add_argument("--model", dest="model", help = "Trained model")
     
     
     parser.add_argument("--teacher_ratio", type = float, help = "Teacher ratio to use")
+    parser.add_argument("--threshold", type = float, default = 0.5, help = "Prediction threshold for training loop")
+    parser.add_argument("--hrnn_layer_names", dest = "hrnn_layer_names", nargs = "+", default = ["paragraphs", "chapters"], help = "Names of hierarchical layers in model")
+    parser.add_argument("--temperature", type = float, dest = "temperature", default = 1.0, help = "Temperature for inference")
     
     # Training params
     parser.add_argument("--num_epochs", dest="num_epochs", type = int, help="number of epochs to train")
@@ -245,32 +155,25 @@ if __name__ == "__main__":
     
     args, rest = parser.parse_known_args()
     
-    make_dirs(args.results)
-    make_dirs(args.output)
-    make_dirs(args.model)
+    make_parent_dirs_for_files([args.training_summary, args.train_output, args.dev_output, args.model])
     
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     torch.cuda.empty_cache()
     
-    print(f"Balance pos neg: {args.balance_pos_neg}")
-    print(f"Layer Weights: {args.layer_weights}")
-
     if torch.cuda.is_available():
         device = "cuda"
     else:
         device = "cpu"
 
-    num_epochs = args.num_epochs
-
-    best_accuracy = 0
-
     # Get batches
     train_batches = get_batch(args.train, batch_size=args.batch_size, device = device)
     dev_batches = get_batch(args.dev, batch_size=args.batch_size, device = device)
     
+    metrics = [f1_score, recall_score, precision_score, accuracy_score]
+    
+    # Get data sizes
     with gzip.open(args.train, "rt") as ifd:
-        # print(ifd.readline(),  flush = True)
         j = json.loads(ifd.readline())
         emb_dim = len(j["flattened_embeddings"][0])
         num_layers_minus_one = len(j["hierarchical_labels"][0])
@@ -283,6 +186,7 @@ if __name__ == "__main__":
         input_size = emb_dim,
         hidden_size = 512,
         num_layers = 3,
+        layer_names=args.hrnn_layer_names,
         dropout = 0.,
         device = device
     )
@@ -294,33 +198,49 @@ if __name__ == "__main__":
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    without_improvement = 0
-    
-    prev_dev_loss = float("inf")
-    best_dev_loss = float("inf")
-
+    # Losses & layer_losses
     train_losses = []
     dev_losses = []
-    # train_accs, train_f1s, train_cms = [], [], []
-    # dev_accs, dev_f1s, dev_cms = [], [], []
-    
-    best_model = None
-    
-    result_table = tt.Texttable()
-    result_table.set_cols_width([10, 10, 10, 40, 40])
-    result_table.set_cols_align(["l", "l", "l", "l", "l"])
-    result_table.header(["Epoch", "Train Loss", "Dev loss", "Layer Losses", "Dev F1 Scores"])
     
     train_lls = []
     dev_lls = []
     
-    dev_f1_scores = []
+    # Best model
+    best_model = None
+    best_model_epoch = 0
+    best_dev_loss = float("inf")
+    to_save_train = None
+    to_save_dev = None
+    
+    # Metrics
+    epoch_metrics = []
+    
+    # Set up summary table
+    summary_table = tt.Texttable()
+    summary_table.set_cols_width([10, 10, 40, 10, 40])
+    summary_table.set_cols_align(["l", "l", "l", "l", "l"])
+    summary_table.header(["Epoch", "Train Loss", "Train Layer Losses", "Dev loss", "Dev Layer Losses"])
+    
+    # Training Loop
     for epoch in tqdm(range(args.num_epochs), desc = "Epochs"):
 
-        # Training Loop
-        train_loss, train_layer_losses, (train_guesses, train_golds) = run_model(model, optimizer, train_batches["inputs"], layer_weights, args.balance_pos_neg, device = device, is_train=True, teacher_ratio = args.teacher_ratio)
+        train_loss, train_layer_losses, (train_guesses, train_golds) = run_model(model,
+                                                                                 optimizer,
+                                                                                 train_batches["inputs"],
+                                                                                 layer_weights,
+                                                                                 args.balance_pos_neg,
+                                                                                 device = device,
+                                                                                 is_train=True,
+                                                                                 teacher_ratio = args.teacher_ratio)
         
-        dev_loss, dev_layer_losses, (dev_guesses, dev_golds) = run_model(model, None, dev_batches["inputs"], layer_weights, args.balance_pos_neg, device = device, is_train = False, teacher_ratio = 0.0)
+        dev_loss, dev_layer_losses, (dev_guesses, dev_golds) = run_model(model,
+                                                                         None,
+                                                                         dev_batches["inputs"],
+                                                                         layer_weights,
+                                                                         args.balance_pos_neg,
+                                                                         device = device,
+                                                                         is_train = False,
+                                                                         teacher_ratio = 0.0)
         
         train_losses.append(train_loss)
         train_lls.append(train_layer_losses)
@@ -328,45 +248,76 @@ if __name__ == "__main__":
         dev_losses.append(dev_loss)
         dev_lls.append(dev_layer_losses)
         
-        print(f"Train losss: {train_loss}")
-        print(f"Dev loss: {dev_loss}")
+        predictions = {
+            "guesses": dev_guesses,
+            "golds": dev_golds,
+            "lengths": dev_batches["lengths"]
+        }
         
-        dev_f1_score = get_f1_score(dev_golds, dev_guesses)
-        dev_f1_scores.append(dev_f1_score)
+        unpadded_dev_outputs = unpad_predictions(predictions)
+        
+        epoch_metrics.append(apply_metrics(unpadded_dev_outputs["scores"],
+                                           unpadded_dev_outputs["true_labels"],
+                                           metrics,
+                                           args.hrnn_layer_names,
+                                           args.threshold))
         
         if dev_loss < best_dev_loss:
             best_dev_loss = dev_loss
+            best_model_epoch = epoch
             best_model = model.state_dict()
+            to_save_train = train_guesses
+            to_save_dev = dev_guesses
             
-        result_table.add_row([epoch, train_loss, dev_loss, train_layer_losses, dev_f1_score])
+        summary_table.add_row([epoch, train_loss, train_layer_losses, dev_loss, dev_layer_losses])
     
-    with open(args.results, "w") as results_file:
-        results_file.write(result_table.draw())
+    with open(args.training_summary, "w") as summary_file:
+        summary_file.write(summary_table.draw())
     
     print(f"Size of dev guesses {len(dev_guesses)}, dev_golds {len(dev_golds)}, metadata: {len(dev_batches['metadata'])}")
     
     if best_model is not None:
         torch.save(best_model, args.model)
     
-    with open(args.output, "wb") as output_file:
+    with open(args.train_output, "wb") as train_output_file:
         pickle.dump(
             {
-                "train_guesses": train_guesses,
-                "train_golds": train_golds,
-                "train_metadata": train_batches["metadata"],
-                "train_lengths": train_batches["lengths"],
-                "train_sentences": train_batches["sentences"],
+                "final_guesses": train_guesses,
+                "guesses": to_save_train,
+                "golds": train_golds,
+                "metadata": train_batches["metadata"],
+                "lengths": train_batches["lengths"],
+                "sentences": train_batches["sentences"],
+                "best_model_epoch": best_model_epoch
+            },
+            train_output_file
+        )
+        
+    with open(args.dev_output, "wb") as dev_output_file:
+        pickle.dump(
+            {
+                "final_guesses": dev_guesses,
+                "guesses": to_save_dev,
+                "golds": dev_golds,
+                "metadata": dev_batches["metadata"],
+                "lengths": dev_batches["lengths"],
+                "sentences": dev_batches["sentences"],
+                "best_model_epoch": best_model_epoch
+            },
+               dev_output_file
+        )
+        
+    with open(args.training_stats, "wb") as training_stats_file:
+        pickle.dump(
+            {
                 "train_losses": train_losses,
                 "train_layer_losses": train_lls,
-                "dev_guesses": dev_guesses,
-                "dev_golds": dev_golds,
-                "dev_metadata": dev_batches["metadata"],
-                "dev_lengths": dev_batches["lengths"],
-                "dev_sentences": dev_batches["sentences"],
                 "dev_losses": dev_losses,
-                "dev_layer_losses": dev_lls
+                "dev_layer_losses": dev_lls,
+                "best_model_epoch": best_model_epoch,
+                "epoch_metrics": epoch_metrics
             },
-            output_file
+               training_stats_file
         )
     #     # Dev Loop
     #     dev_loss, (dev_guesses, dev_golds) = run_model(model, None, dev_batches, device = device, is_train=False)

@@ -2,10 +2,14 @@ import os
 import jsonlines
 import gzip
 
-def make_dirs(filepath):
+def make_parent_dirs(filepath):
     directory = os.path.dirname(filepath)
     if not os.path.exists(directory):
         os.makedirs(directory)
+        
+def make_parent_dirs_for_files(filepaths):
+    for filepath in filepaths:
+        make_parent_dirs(filepath)
 
 def make_dir(directory):
     if not os.path.exists(directory):

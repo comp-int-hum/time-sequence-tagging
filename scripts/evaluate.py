@@ -3,102 +3,22 @@ import torch
 import jsonlines
 import torch.nn as nn
 import torch.optim as optim
-from utility import open_file, make_dirs
+from utility import open_file, make_parent_dirs
 import torch.nn.utils.rnn as rnn_utils
 import numpy as np
 import logging
 from tqdm import tqdm
 import gzip
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, ConfusionMatrixDisplay
-from collections import defaultdict
-import texttable as tt
-from generic_hrnn import GenericHRNN
-import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, accuracy_score, ConfusionMatrixDisplay
 import texttable as tt
 import json
 import pickle
 import os
 import torch
-import matplotlib.pyplot as plt
+from batch_utils import get_batch, unpad_predictions
+from generic_hrnn import GenericHRNN
 
 logger = logging.getLogger("evaluate_model")
-
-
-def unpack_data(datapoint):
-    """Unpack data from datapoint dict
-
-    Args:
-        datapoint (dict): a dictionary representing a sequence from a text and its metadata
-
-    Returns:
-        tuple: (embeddings, multiclass labels, metadata)
-    """
-    # labels = [datapoint["paragraph_labels"], datapoint["chapter_labels"]] if args.boundary_type == "both" else [datapoint["{}_labels".format(args.boundary_type)]]
-    # return datapoint.pop("flattened_embeddings"), labels, datapoint
-    return datapoint["flattened_embeddings"], datapoint["hierarchical_labels"], datapoint["metadata"], datapoint["flattened_sentences"]
-
-
-def get_batch(filepath, batch_size=32, device="cpu"):
-    """Create batches based on file path and batch_size
-
-    Args:
-        filepath (str): filepath to data
-        batch_size (int, optional): Batch size for model training. Defaults to 32.
-        device (str, optional): Device to move tensors to. Defaults to "cpu".
-
-    Returns:
-        tuple: (data_batches, label_batches), metadata_batches
-    """
-    data_batches, label_batches, metadata_batches, length_batches, sentence_batches = [], [], [], []
-    data_batch, label_batch, metadata_batc, sentence_batch = [], [], []
-    
-    # Helper function for appending batches and padding if model_type is sequence_tagger
-    def append_data(batch_data, batch_label, batch_metadata):
-        # print(f"Batch data type: {type(batch_data)}")
-        # print(f"Sample batch data: {batch_data}")
-        batch_lengths = [len(l) for l in batch_label]
-        batch_data = rnn_utils.pad_sequence([torch.tensor(d) for d in batch_data], batch_first=True) # [batch_size, seq_len, emb_size]
-        print(f"Batch data shape: {batch_data.shape}")
-        batch_label = rnn_utils.pad_sequence([torch.tensor(l) for l in batch_label], batch_first=True).to(device)
-        print(f"Batch label shape: {batch_label.shape}")
-        # [batch_size, seq_len, num_layers]
-        
-        data_batches.append(batch_data.to(device))
-        label_batches.append(batch_label)
-        metadata_batches.append(batch_metadata)
-        length_batches.append(batch_lengths)
-        sentence_batches.append(sentence_batch)
-        
-    # Open data file
-    total = 0
-    with open_file(filepath, "r") as source_file, jsonlines.Reader(source_file) as datapoints:
-        for i, datapoint in enumerate(datapoints):
-            total += 1
-            data, label, metadata, sentences = unpack_data(datapoint)
-            
-            # Append data
-            data_batch.append(data)
-            label_batch.append(label)
-            metadata_batch.append(metadata)
-            sentence_batch.append(sentences)
-            
-            # Add batch if batch_sized has been reached
-            if len(data_batch) == batch_size:
-                append_data(data_batch, label_batch, metadata_batch, sentence_batch)
-                data_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
-        
-        # Add leftover data items to a batch
-        if data_batch:
-            append_data(data_batch, label_batch, metadata_batch, sentence_batch)
-
-    return {
-        "inputs": (data_batches, label_batches),
-        "sentences": sentence_batches,
-        "metadata": metadata_batches,
-        "lengths": length_batches,
-        "count": total
-    }
-
 
 
 def run_model(model, batches, device="cpu"):
@@ -133,7 +53,6 @@ def run_model(model, batches, device="cpu"):
 
 
 def get_f1_score(guesses, golds, threshold = 0.5):
-    
     f1_scores = []
     num_els = 0
     for guess, gold in zip(guesses, golds):
@@ -149,6 +68,40 @@ def get_f1_score(guesses, golds, threshold = 0.5):
     
     return sum(f1_scores) / num_els if num_els > 0 else 0
 
+def apply_metrics(scores, true_labels, metrics, hrnn_layer_names, threshold = 0.5):
+    _, num_layers_minus_one = true_labels.shape
+    
+    layerwise_metrics = []
+    
+    for l, layer_name in enumerate(hrnn_layer_names):
+    
+        # Scores and labels
+        layer_scores = scores[:, l]
+        layer_guesses = (layer_scores > threshold).int().numpy()
+        
+        layer_labels = true_labels[:, l].numpy()
+        
+        computed_metrics = []
+        
+        for metric in metrics:
+            computed_metrics.append(
+                {
+                    "metric_name": metric.__name__,
+                    "value": metric(layer_labels, layer_guesses)
+                }
+            )
+        
+        layerwise_metrics.append(
+            {
+                "layer_name": layer_name,
+                "layer_num": l,
+                "metrics": computed_metrics
+            }
+        )
+        
+    return layerwise_metrics
+        
+    
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -162,7 +115,7 @@ if __name__ == "__main__":
     
     args, rest = parser.parse_known_args()
     
-    make_dirs(args.output)
+    make_parent_dirs(args.output)
     
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -178,14 +131,23 @@ if __name__ == "__main__":
     input_batches = get_batch(args.input, batch_size=args.batch_size, device = device)
     
     with gzip.open(args.input, "rt") as ifd:
-        print(ifd.readline(),  flush = True)
+        # print(ifd.readline(),  flush = True)
         j = json.loads(ifd.readline())
         emb_dim = len(j["flattened_embeddings"][0])
         num_layers_minus_one = len(j["hierarchical_labels"][0])
         print(f"Num layers - 1: {num_layers_minus_one}")
     
     
-    model = torch.load(args.model)
+    model = GenericHRNN(
+        input_size = emb_dim,
+        hidden_size = 512,
+        num_layers = 3,
+        dropout = 0.,
+        device = device
+    )
+    
+    model.load_state_dict(torch.load(args.model))
+        
     logger.info("%s", model)
 
     model.to(device)
@@ -194,9 +156,9 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Training Loop
-    (guesses, golds) = run_model(model, input_batches["inputs"], device="cpu")
+    (guesses, golds) = run_model(model, input_batches["inputs"], device = device)
     
-    dev_f1_score = get_f1_score(golds, guesses)
+    # dev_f1_score = get_f1_score(golds, guesses)
     
     with open(args.output, "wb") as output_file:
         pickle.dump(
@@ -205,6 +167,7 @@ if __name__ == "__main__":
                 "golds": golds,
                 "metadata": input_batches["metadata"],
                 "lengths": input_batches["lengths"],
+                "sentences": input_batches["sentences"]
             },
             output_file
         )

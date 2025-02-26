@@ -7,7 +7,7 @@ import os
 import csv
 import jsonlines
 import json
-from utility import make_dirs
+from utility import make_parent_dirs
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import texttable as tt

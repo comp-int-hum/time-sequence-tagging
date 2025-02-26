@@ -5,7 +5,7 @@ from tqdm import tqdm
 import json
 import nltk
 import gzip
-from utility import make_dirs
+from utility import make_parent_dirs
 import re
 import random
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--filters", dest="filters", nargs = "*", default = [r"^[^a-zA-Z0-9]*[A-Z]+(?:'?[A-Z]+)?(\s[A-Z]+(?:'?[A-Z]+)?)*[^a-zA-Z0-9]*$"], help = "Sentence filter patterns")
     args, rest = parser.parse_known_args()
     
-    make_dirs(args.output)
+    make_parent_dirs(args.output)
     
     with open(args.input, "rt") as input_file:
         data = json.load(input_file)

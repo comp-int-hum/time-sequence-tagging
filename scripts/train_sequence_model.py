@@ -4,11 +4,11 @@ import jsonlines
 import torch.nn as nn
 import torch.optim as optim
 import os
-from utility import make_dirs, make_dir, parse_labels, open_file
+from utility import make_parent_dirs, make_dir, parse_labels, open_file
 import torch.nn.utils.rnn as rnn_utils
 import numpy as np
 import logging
-from models import SequenceTagger, SequenceTaggerWithBahdanauAttention, GeneralMulticlassSequenceTaggerWithBahdanauAttention
+from models import SequenceTagger # , SequenceTaggerWithBahdanauAttention, GeneralMulticlassSequenceTaggerWithBahdanauAttention
 import pickle
 from tqdm import tqdm
 import gzip
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", dest = "output", help = "Output file for trained model")
 
     # Model parameters
-    parser.add_argument("--model", dest="model", help="Type of model, classifier vs sequence_tagger")
+    parser.add_argument("--model", dest="model", choices = ["lstm", "mingru", "minlstm"], help="Type of model, classifier vs sequence_tagger")
 
     # Training params
     parser.add_argument("--num_epochs", dest="epochs", type = int, help="number of epochs to train")
@@ -171,7 +171,6 @@ if __name__ == "__main__":
 
     best_accuracy = 0
 
-
     task_names = {0 : "paragraph", 1 : "chapter"} if args.boundary_type == "both" else {0 : args.boundary_type}
 
     
@@ -187,9 +186,11 @@ if __name__ == "__main__":
     
     model = SequenceTagger(
         task_sizes = task_sizes,
-        lstm_input_size = emb_dim,
+        input_size = emb_dim,
+        model_name = args.model,
         dropout=args.dropout
     )
+    
     logger.info("%s", model)
 
     model.to(device)

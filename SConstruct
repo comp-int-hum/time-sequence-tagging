@@ -72,7 +72,7 @@ vars.AddVariables(
     ("SENTENCE_FILTERS", "", [r"^[^a-zA-Z0-9]*[A-Z]+(?:'[A-Z]+)?(?:\s[A-Z]+(?:'[A-Z]+)?)*[^a-zA-Z0-9]*$"]),
     ("REQUIRED_PATTERNS", "", [".*fiction.*"]),
     ("LOC_TAGS_TO_KEEP", "Library of Congress tags indicating a text may be kept", ["PS", "PE"]),
-    ("LAYER_WEIGHTS", "", [1.0])
+    ("LAYER_WEIGHTS", "", [1.0]),
 )
 
 # Overrides
@@ -91,6 +91,17 @@ vars.AddVariables(
     ("SAME_CH", "", "True"),
     ("CONTEXT_WINDOW_SIZE", "", [2, 10, 30, 50]), # [2, 10, 50]
     ("CD", "", ""), # cd or no_cd
+)
+
+vars.AddVariables(
+    ("HRNN_LAYER_NAMES", "Hierarchical level names", ["paragraphs", "chapters"]),
+    ("VIS_NUM", "Visualization Number", 4)
+)
+
+# Inference time
+vars.AddVariables(
+	("THRESHOLD", "Prediction threshold for hierarchical boundaries", 0.5),
+ 	("TEMPERATURE", "Temperature value for hidden state mixture", 0.8)
 )
 
 env = Environment(
@@ -219,59 +230,94 @@ env = Environment(
                         "--train ${SOURCES[0]} "
                         "--dev ${SOURCES[1]} "
                         "--test ${SOURCES[2]} "
-                        "--output ${TARGETS[0]} "
-                        "--results ${TARGETS[1]} "
-                        "--model ${TARGETS[2]} "
-                        "${BALANCE_POS_NEG and '--balance_pos_neg $BALANCE_POS_NEG' or ''} "
+                        "--train_output ${TARGETS[0]} "
+                        "--dev_output ${TARGETS[1]} "
+                        "--training_summary ${TARGETS[2]} "
+                        "--training_stats ${TARGETS[3]} "
+                        "--model ${TARGETS[4]} "
                         "--teacher_ratio ${TEACHER_RATIO} "
+                        "--hrnn_layer_names ${HRNN_LAYER_NAMES} "
+                        "--threshold ${THRESHOLD} "
+                        "--temperature ${TEMPERATURE} "
                         "--num_epochs ${EPOCHS} "
                         "--batch_size ${BATCH_SIZE} "
                         "--dropout ${DROPOUT} "
-                        "--layer_weights ${LAYER_WEIGHTS}"
+                        "--layer_weights ${LAYER_WEIGHTS} "
+                        "${BALANCE_POS_NEG and '--balance_pos_neg $BALANCE_POS_NEG' or ''}"
                     )
         ),
+        
+        "ComputeROCMetrics": Builder(
+			action=(
+				"python scripts/compute_roc_metrics.py "
+				"--input ${SOURCES[0]} "
+    			"--threshold_metrics ${TARGETS[0]} "
+				"--roc_by_layer ${TARGETS[1:]} "
+				"--hrnn_layer_names ${HRNN_LAYER_NAMES}"
+			)
+		),
+        
+        "ComputeConfidenceMetrics": Builder(
+			action=(
+				"python scripts/compute_text_confidence_metrics.py "
+				"--input ${SOURCES[0]} "
+    			"--confidence_matrix ${TARGETS[0]} "
+				"--hrnn_layer_names ${HRNN_LAYER_NAMES} "
+    			"--threshold ${THRESHOLD}"
+			)
+		),
+        
+        "PlotTrainingMetrics": Builder(
+			action=(
+				"python scripts/plot_training_metrics.py "
+				"--input ${SOURCES[0]} "
+				"--loss_curves ${TARGETS[0:1]} "
+				"--layer_loss_curves ${TARGETS[1:3]} "
+				"--hrnn_layer_names ${HRNN_LAYER_NAMES}"
+			)
+		),
+        
         "BuildVisualizations": Builder(
-			action = (
-       					"python scripts/build_visualizations.py "
-            			"--input ${SOURCES[0]} "
-						"--visualization ${TARGETS[0]} "
-						"--confusion_matrix ${TARGETS[1]} "
-						"--vis_num ${VIS_NUM} "
-						"--threshold ${THRESHOLD}"
-					 )
+			action=(
+				"python scripts/build_visualizations.py "
+				"--input ${SOURCES[0]} "
+				"--hrnn_visualizations ${TARGETS} "
+				"--hrnn_layer_names ${HRNN_LAYER_NAMES} "
+				"--threshold ${THRESHOLD}"
+			)
 		),
         
         "FormatChapterBreak": Builder(
-			action = (
-       					"python scripts/format_chapterbreak.py "
-            			"--input ${SOURCES[0]} "
-						"--output ${TARGETS[0]} "
-						"--splits ${SPLITS} "
-						"--filters ${FILTERS}"
-					 )
-		),
+            action = (
+                        "python scripts/format_chapterbreak.py "
+                        "--input ${SOURCES[0]} "
+                        "--output ${TARGETS[0]} "
+                        "--splits ${SPLITS} "
+                        "--filters ${FILTERS}"
+                     )
+        ),
         
         "EncodeSequencedTexts": Builder(
-			action= (
-       				 "python scripts/encode_chapterbreak_data.py "
+            action= (
+                    "python scripts/encode_chapterbreak_data.py "
                      "--input ${SOURCES[0]} "
                      "--output ${TARGETS[0]} "
                      "--model_id ${MODEL_ID} "
                      "--max_toks ${MAX_TOKS} "
                      "--batch_size ${BATCH_SIZE}"
             )
-		),
+        ),
         
         "Evaluate": Builder(
-			action = (
-				"python scripts/evaluate.py "
-				"--input ${SOURCES[0]} "
-				"--model ${SOURCES[1]} "
-				"--output ${TARGETS[0]} "
-				"--batch_size ${BATCH_SIZE} "
-				"--threshold ${THRESHOLD}"
-			)
-		)
+            action = (
+                "python scripts/evaluate.py "
+                "--input ${SOURCES[0]} "
+                "--model ${SOURCES[1]} "
+                "--output ${TARGETS[0]} "
+                "--batch_size ${BATCH_SIZE} "
+                "--threshold ${THRESHOLD}"
+            )
+        )
         # "BuildVisualizations": Builder(
         #     action="python scripts/generate_report.py --input ${SOURCES[0]} --output ${TARGETS} --pg_path ${PG_PATH}"
         # ),
@@ -321,10 +367,10 @@ transformed_chicago_docs = env.TransformExtractedData(
 )
 
 chapterbreak_data = env.FormatChapterBreak(
-	source = [env.get("CHAPTERBREAK_FILE")],
-	target = [f"work/evaluation/chapter_break_data.jsonl.gz"],
-	SPLITS = ["pg19", "ao3"],
-	FILTERS = repr(env["SENTENCE_FILTERS"])
+    source = [env.get("CHAPTERBREAK_FILE")],
+    target = [f"work/evaluation/chapter_break_data.jsonl.gz"],
+    SPLITS = ["pg19", "ao3"],
+    FILTERS = repr(env["SENTENCE_FILTERS"])
 )
 
 for model in env.get("MODELS", []):
@@ -338,13 +384,13 @@ for model in env.get("MODELS", []):
     )
     
     encoded_chapterbreak_data = env.EncodeSequencedTexts(
-		source = [chapterbreak_data],
-		target = ["work/${MODEL_NAME}/encoded_chapterbreak.jsonl.gz"],
-		MODEL_NAME=model["name"],
-		MODEL_ID=model["id"],
-		BATCH_SIZE=model.get("BATCH_SIZE", 64),
-		**gpu_task_config("encode_data", "12:00:00", "32G"),
-	)
+        source = [chapterbreak_data],
+        target = ["work/${MODEL_NAME}/encoded_chapterbreak.jsonl.gz"],
+        MODEL_NAME=model["name"],
+        MODEL_ID=model["id"],
+        BATCH_SIZE=model.get("BATCH_SIZE", 64),
+        **gpu_task_config("encode_data", "12:00:00", "32G"),
+    )
     
     if env.get("TOY_RUN", 0):
         print(f"Toy run: {env['TOY_RUN']}")
@@ -380,41 +426,77 @@ for model in env.get("MODELS", []):
                     MAX_LEN = max_seq,
                     SAMPLE_METHOD = "from_beginning",
                     SAMPLES_PER_DOCUMENT = 1,
-                    TRAIN_PROPORTION = 0.7,
-                    DEV_PROPORTION = 0.15,
-                    TEST_PROPORTION = 0.15
+                    TRAIN_PROPORTION = 0.8,
+                    DEV_PROPORTION = 0.1,
+                    TEST_PROPORTION = 0.1
                 )
+                
                 for layer_weight in env.get("LAYER_WEIGHTS", []):
-                    model_guesses, training_summary, trained_model = env.TrainHRNN(
+                    layer_weight_path = f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}"
+                    visualization_path = f"{layer_weight_path}/visualizations"
+                    roc_path = f"{layer_weight_path}/roc_metrics"
+                    
+                    train_guesses, dev_guesses, training_summary, training_metrics, trained_model = env.TrainHRNN(
                         source = [train, dev, test],
-                        target = [f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}/model_guesses.pkl",
-                                f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}/training_results.txt",
-                                f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}/model_state.pth"],
+                        target = [f"{layer_weight_path}/guesses/train_guesses.pkl",
+                                  f"{layer_weight_path}/guesses/dev_guesses.pkl",
+                                  f"{layer_weight_path}/results/training_results.txt",
+                                  f"{layer_weight_path}/results/training_metrics.pkl",
+                                  f"{layer_weight_path}/model/model_state.pth"],
                         MODEL_NAME = model["name"],
                         BATCH_SIZE = 10,
                         DROPOUT = 0.6,
-                        TEACHER_RATIO = 0.9,
+                        TEACHER_RATIO = 1.0,
                         EPOCHS = env.get("EPOCHS"),
+                        THRESHOLD =  env["THRESHOLD"],
                         BALANCE_POS_NEG = [1.0, 1.0],
                         LAYER_WEIGHTS = [1.0, layer_weight],
                         **gpu_task_config("train_hrnn", "12:00:00", "32G"),
                     )
                     
-                    visualization_dir = env.BuildVisualizations(
-						source = [model_guesses],
-						target = [Dir(f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}/visualizations"),
-                				  f"{env['WORK_DIR']}/{model['name']}/trained_model_output/confusion_matrix.json"],
-      					VIS_NUM = 4,
-						THRESHOLD = 0.7
+                    training_metrics_visualizations = env.PlotTrainingMetrics(
+						source = [training_metrics],
+						target = [
+							f"{layer_weight_path}/results/loss_curves.png",
+       						f"{layer_weight_path}/results/par_layer_loss_curves.png",
+             				f"{layer_weight_path}/results/chapter_layer_loss_curves.png",
+						]
 					)
                     
-                    # TO BE TESTED
-                    # env.Evaluate(
-					# 	source = [encoded_chapterbreak_data, trained_model],
-					# 	target = [f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}/evaluate_model_guesses.pkl"]
-					# 	BATCH_SIZE = 10,
-					# 	THRESHOLD = 0.7
-					# )
+                    # Get ROC metrics and visualizations
+                    roc_visualizations = [f"{roc_path}/roc_curve_for_{layer_name}" for layer_name in env["HRNN_LAYER_NAMES"]]
+                    
+                    roc_metrics = env.ComputeROCMetrics(
+						source = [dev_guesses],
+						target = [f"{roc_path}/optimal_thresholds.json",
+                                  roc_visualizations],
+					)
+                    
+                    # Get confidence matrix
+                    confidence_matrix = env.ComputeConfidenceMetrics(
+						source = [dev_guesses],
+						target = [f"{layer_weight_path}/confidence_matrix.json"],
+      					THRESHOLD = env["THRESHOLD"],
+					)
+                    
+                    # Get boundary visualizations
+                    layer_visualizations = [f"{visualization_path}/visualization_{num}" for num in range(env["VIS_NUM"])]
+                    
+                    boundary_visualizations = env.BuildVisualizations(
+                        source = [dev_guesses],
+                        target = [layer_visualizations],
+                        THRESHOLD = env["THRESHOLD"],
+                        NUM_LAYERS = len(env["HRNN_LAYER_NAMES"])
+                    )
+                    
+                    chapterbreak_guesses = env.Evaluate(
+                    	source = [encoded_chapterbreak_data, trained_model],
+                    	target = [f"{layer_weight_path}/chapterbreak_guesses.pkl"],
+                    	BATCH_SIZE = 10,
+                    	THRESHOLD =  env["THRESHOLD"]
+                    )
+                    
+                    
                     
                     
 

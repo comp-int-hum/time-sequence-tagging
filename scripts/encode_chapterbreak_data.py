@@ -5,7 +5,6 @@ import jsonlines
 import torch
 import gzip
 from tqdm import tqdm
-from utility import make_dirs
 
 def batch_items(items, batch_size):
     while len(items) > 0:
