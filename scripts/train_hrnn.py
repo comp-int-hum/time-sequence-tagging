@@ -2,19 +2,19 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utility import make_parent_dirs_for_files
+from utils.utility import make_parent_dirs_for_files
 import logging
 from tqdm import tqdm
 import gzip
 from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score # , ConfusionMatrixDisplay, confusion_matrix,
 import texttable as tt
-from generic_hrnn import GenericHRNN
+from scripts.models.hrnn import HRNN
 import texttable as tt
 import json
 import pickle
 import os
 import torch
-from batch_utils import get_batch, unpad_predictions
+from utils.batch_utils import get_batch, unpad_predictions
 from evaluate import get_f1_score, apply_metrics
 
 logger = logging.getLogger("train_sequence_model")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     layer_weights = args.layer_weights if args.layer_weights else [1.0] * num_layers_minus_one
     print(f"Layer weights: {layer_weights}")
     
-    model = GenericHRNN(
+    model = HRNN(
         input_size = emb_dim,
         hidden_size = 512,
         num_layers = 3,

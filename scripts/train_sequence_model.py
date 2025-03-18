@@ -4,7 +4,7 @@ import jsonlines
 import torch.nn as nn
 import torch.optim as optim
 import os
-from utility import make_parent_dirs, make_dir, parse_labels, open_file
+from utils.utility import make_parent_dirs, make_dir, parse_labels, open_file
 import torch.nn.utils.rnn as rnn_utils
 import numpy as np
 import logging

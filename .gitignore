@@ -16,3 +16,5 @@ full-run-10-samples/*
 test*
 scripts/visualize*
 scripts/obs/*
+backup/*
+backup

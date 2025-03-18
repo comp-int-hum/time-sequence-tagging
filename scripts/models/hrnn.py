@@ -4,7 +4,7 @@ import torch
 import math
 import random
 
-class GenericHRNN(Module):
+class HRNN(Module):
     def __init__(self, input_size, hidden_size, num_layers, layer_names = [], dropout = 0., device = "cpu"):
         super().__init__()
         
