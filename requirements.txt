@@ -1,8 +1,6 @@
 
 beautifulsoup4
-lxml
 transformers
-h5py
 jsonlines
 torch
 matplotlib
@@ -12,4 +10,3 @@ numpy
 tqdm
 steamroller
 texttable
-zipfile

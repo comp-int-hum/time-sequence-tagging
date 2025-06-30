@@ -1,34 +1,61 @@
 import argparse
 from transformers import AutoModel, AutoTokenizer
-import torch
 import jsonlines
 import torch
 import gzip
 from tqdm import tqdm
+import logging
 
+import json
+logger = logging.getLogger(__name__)
 
 def batch_items(items, batch_size):
     while len(items) > 0:
         yield items[:batch_size]
         items = items[batch_size:]
 
+def get_flattened_text_units(structure):
+    texts = []
+
+    def traverse(node):
+        if isinstance(node, list):
+            for item in node:
+                traverse(item)
+        elif isinstance(node, dict):
+            if "text" in node:
+                texts.append(node["text"])
+            elif "subunits" in node:
+                traverse(node["subunits"])
+
+    traverse(structure)
+    return texts
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest="input", help="File containing gutenberg & women writers project")
-    parser.add_argument("--output", dest="output", help="Output file")
+    parser.add_argument("--output_embedding", dest="output_embedding", help="Output embedding file")
     parser.add_argument("--model_id", dest="model_id", help="Huggingface ID of model to use")
     parser.add_argument("--max_toks", type=int, dest="max_toks")
     parser.add_argument("--batch_size", type=int, default=1024, dest="batch_size")
     args, rest = parser.parse_known_args()
 
+    logger.info(
+        f"Starting text encoding process with:\n"
+        f"  Input: {args.input}\n"
+        f"  Output: {args.output_embedding}\n"
+        f"  Model: {args.model_id}\n"
+        f"  Max tokens: {args.max_toks}\n"
+        f"  Batch size: {args.batch_size}"
+    )
+
     if torch.cuda.is_available():
         device = "cuda"
+        logger.info(f"Using CUDA device: {torch.cuda.get_device_name()}")
+        logger.info(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     else:
         device = "cpu"
-
-    print(f"Device: {device}")
+        logger.info("Using CPU device")
 
     torch.cuda.empty_cache()
     
@@ -36,10 +63,10 @@ if __name__ == "__main__":
     model = AutoModel.from_pretrained(args.model_id)
     model.to(device)
                 
-    with gzip.open(args.input, "r") as input_file, gzip.open(args.output, "w") as output_file:
+    with gzip.open(args.input, "rt") as input_file, gzip.open(args.output_embedding, "wt") as output_file:
         with jsonlines.Reader(input_file) as reader, jsonlines.Writer(output_file) as writer:
             for idx, doc in tqdm(enumerate(reader)):
-                sents = sum([sum(c["structure"], []) for c in doc["chapters"]], [])
+                sents = doc["content"]
                 sent_embs = []
                 for sentences in batch_items(sents, args.batch_size):
                     tokens = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt", max_length=args.max_toks)
@@ -52,13 +79,9 @@ if __name__ == "__main__":
                     bert_hidden_states = bert_output["hidden_states"]
                     sent_embs += bert_hidden_states[-1][:,0,:].tolist()
 
-                counter = 0
-                for i in range(len(doc["chapters"])):
-                    for j in range(len(doc["chapters"][i]["structure"])):
-                        for k in range(len(doc["chapters"][i]["structure"][j])):
-                            doc["chapters"][i]["structure"][j][k] = {
-                                "text" : doc["chapters"][i]["structure"][j][k],
-                                "embedding" : sent_embs[counter]
-                            }
-                            counter += 1
-                writer.write(doc)
+                output_embedding = {
+                    "embeddings": sent_embs,
+                    "source": doc["metadata"]["source"],
+                    "key": doc["key"]
+                }
+                writer.write(json.dumps(output_embedding) + "\n")

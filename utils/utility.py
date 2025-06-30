@@ -1,5 +1,4 @@
 import os
-import jsonlines
 import gzip
 
 def make_parent_dirs(filepath):
@@ -27,7 +26,3 @@ def open_file(filename, mode = "rt"):
 def parse_labels(labels_str):
     label_classes = labels_str.split("=")
     return [labels.split("-") if labels else [] for labels in label_classes]
-
-def validate_model_names(key, val, env):
-    if not "sequence_tagger" or "classifier" in val:
-        raise f"Invalid  model name: {val}"
