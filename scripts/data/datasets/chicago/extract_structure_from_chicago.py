@@ -136,16 +136,16 @@ if __name__ == "__main__":
                         "structure": get_structure(soup, args.max_title_len, args.chapter_filters)
                     }
                     
-                    if extracted_text["chapters"]:
-                        partial_extracted += 1
-                        if len(extracted_text["chapters"]) > args.min_chapters:
-                            fully_extracted += 1
-                            catalog_table_obj.add_row(list(extracted_text["metadata"].values()))
-                            ofd.write(json.dumps(extracted_text) + "\n")
-                        else:
-                            logger.debug(f"Partially extracted {len(extracted_text['chapters'])} chapters from {zip_info.filename}")
-                    else:
-                        logger.debug(f"Could not extract {zip_info.filename}")
+                    # if extracted_text["chapters"]:
+                    #     partial_extracted += 1
+                    #     if len(extracted_text["chapters"]) > args.min_chapters:
+                    #         fully_extracted += 1
+                    #         catalog_table_obj.add_row(list(extracted_text["metadata"].values()))
+                    #         ofd.write(json.dumps(extracted_text) + "\n")
+                    #     else:
+                    #         logger.debug(f"Partially extracted {len(extracted_text['chapters'])} chapters from {zip_info.filename}")
+                    # else:
+                    #     logger.debug(f"Could not extract {zip_info.filename}")
     
     # Table
     stats_table = tt.Texttable()

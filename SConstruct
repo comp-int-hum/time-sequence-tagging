@@ -133,7 +133,7 @@ env = Environment(
                      "--output ${TARGETS[0]} "
                      "--output_catalog ${TARGETS[1]} "
                      "--min_chapters ${MIN_CHAPTERS} "
-                     "--chapter_filters ${CHAPTER_HEADING_PATTERNS}"
+                     "--chapter_heading_patterns ${CHAPTER_HEADING_PATTERNS}"
             )
         ),
 
@@ -159,9 +159,10 @@ env = Environment(
         "RestructureChapterbreak": Builder(
             action = ("python scripts/data/datasets/chapterbreak/restructure_chapterbreak.py "
                       "--input ${SOURCES[0]} "
-                      "--output ${TARGETS[0]} "
+                      "--data_output ${TARGETS[0]} "
+                      "--label_output ${TARGETS[1]} "
                       "--splits ${SPLITS} "
-                      "--title_filters ${SENTENCE_FILTERS}"
+                      '--title_filters "${SENTENCE_FILTERS}"'
             )
         ),
 
@@ -180,7 +181,7 @@ env = Environment(
         "ProcessStructuredText": Builder(
             action = ("python scripts/data/datasets/process_structured_text.py "
                       "--input ${SOURCES[0]} "
-                      "--data_output ${TARGETS[0]}"
+                      "--data_output ${TARGETS[0]} "
                       "--label_output ${TARGETS[1]}"
             )
         ),
@@ -209,12 +210,16 @@ env = Environment(
                 "--train_proportion ${TRAIN_PROPORTION} "
                 "--dev_proportion ${DEV_PROPORTION} "
                 "--test_proportion ${TEST_PROPORTION} "
-                "${RANDOM_SEED and '--random_seed ${RANDOM_SEED}' or ''}"
+                "${'--random_seed %s' % RANDOM_SEED if RANDOM_SEED else ''}"
+                # "${RANDOM_SEED and '--random_seed' ${RANDOM_SEED} or ''}"
             )
         )
 
     }
 )
+
+env["ENV"]["PYTHONPATH"] = os.getcwd()
+
 
 def cpu_task_config(name, time_required, memory_required=env["GRID_MEMORY"]):
     return {
@@ -255,7 +260,7 @@ structured_chicago_docs = env.ExtractStructureFromChicago(
         "work/datasets/chicago/structured_chicago_texts.jsonl.gz",
         "work/datasets/chicago/extracted_chicago_texts_catalog.txt.gz"
     ],
-    MIN_CHAPTERS=3
+    MIN_CHAPTERS=3,
 )
 
 cleaned_chicago_docs = env.CleanStructuredData(
@@ -288,7 +293,7 @@ chapterbreak_data, chapterbreak_labels = env.RestructureChapterbreak(
     target = [f"work/datasets/chapterbreak/chapterbreak_data.jsonl.gz",
               f"work/datasets/chapterbreak/chapterbreak_hierarchical_labels.jsonl.gz"],
     SPLITS = ["pg19", "ao3"],
-    FILTERS = repr(env["SENTENCE_FILTERS"])
+    FILTERS = env["SENTENCE_FILTERS"]
 )
 
 chapterbreak_embeddings = env.EncodeData(

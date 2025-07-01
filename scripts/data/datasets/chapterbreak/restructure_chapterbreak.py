@@ -43,10 +43,11 @@ if __name__ == "__main__":
     with open(args.input, "rt") as input_file:
         data = json.load(input_file)
     
-    compiled_filters = [re.compile(filter) for filter in args.filters]
+    compiled_filters = [re.compile(filter) for filter in args.title_filters]
     
     outputs = []
     key = 0
+    print(f"KEYS: {data.keys()}")
     for split_name in args.splits:
         data_split = data[split_name]
         for text_id, text in tqdm(list(data_split.items()), desc = f"Iterating over texts in split: {split_name}"):
@@ -55,7 +56,7 @@ if __name__ == "__main__":
                 pos = triplet["pos"]
                 context_sentences = filter_strings(nltk.sent_tokenize(context), compiled_filters)
                 pos_sentences = filter_strings(nltk.sent_tokenize(pos), compiled_filters)
-                data = {
+                new_data = {
                         "metadata": {
                             "title": text_id,
                             "author": "",
@@ -77,7 +78,7 @@ if __name__ == "__main__":
 
                 key += 1
                 
-                outputs.append({"data": data, "annotations": annotations})
+                outputs.append({"data": new_data, "annotations": annotations})
 
     random.shuffle(outputs)
 

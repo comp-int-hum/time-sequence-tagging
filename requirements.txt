@@ -1,4 +1,3 @@
-
 beautifulsoup4
 transformers
 jsonlines
@@ -10,3 +9,4 @@ numpy
 tqdm
 steamroller
 texttable
+lxml
