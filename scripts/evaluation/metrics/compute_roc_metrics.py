@@ -1,13 +1,13 @@
 import argparse
 import json
 import os
-from utility import make_parent_dirs_for_files
+from utils.utility import make_parent_dirs_for_files
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 from sklearn.metrics import matthews_corrcoef
 import numpy as np
 import pickle
-from batch_utils import unbatch
+from utils.batch_utils import unbatch
 from sklearn.metrics import f1_score
 import gzip
 
@@ -64,12 +64,12 @@ def get_optimal_thresholds(fpr, tpr, thresholds, labels, scores):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", dest = "input", help = "Filepath for data containing training outputs")
-    parser.add_argument("--threshold_metrics", dest = "threshold_metrics", help = "Output file for different optimal thresholds")
+    parser.add_argument("--optimal_thresholds_output", dest = "optimal_thresholds_output", help = "Output file for different optimal thresholds")
     parser.add_argument("--roc_by_layer", dest = "roc_by_layer", nargs = "+", help = "Output roc by layer")
     parser.add_argument("--hrnn_layer_names", dest = "hrnn_layer_names", nargs = "+", default = ["paragraphs", "chapters"], help = "Names of hierarchical layers in model")
     args = parser.parse_args()
     
-    make_parent_dirs_for_files([*args.roc_by_layer, args.threshold_metrics])
+    make_parent_dirs_for_files([*args.roc_by_layer, args.optimal_thresholds_output])
     print(f"ROC by layer: {args.roc_by_layer}")
     
     with open(args.input, "rb") as input_file:
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     layerwise_rocs = compute_layerwise_roc(predictions,
                                            args.roc_by_layer)
     
-    with open(args.threshold_metrics, "w") as threshold_output:
+    with open(args.optimal_thresholds_output, "w") as threshold_output:
          json.dump(dict(zip(args.hrnn_layer_names, layerwise_rocs["optimal_thresholds"])),
                    threshold_output)
     

@@ -1,8 +1,8 @@
 import argparse
 import json
-from utility import make_parent_dirs_for_files
+from utils.utility import make_parent_dirs_for_files
 import pickle
-from batch_utils import unbatch
+from utils.batch_utils import unbatch
 
 def get_confidence_matrix(model_predictions, layer_names, top_k=10, threshold=0.5):
     _, num_layers = model_predictions["true_labels"].shape

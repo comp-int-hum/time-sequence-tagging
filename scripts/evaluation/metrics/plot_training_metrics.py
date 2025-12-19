@@ -1,7 +1,7 @@
 import argparse
 import json
 import os
-from utility import make_parent_dirs_for_files
+from utils.utility import make_parent_dirs_for_files
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle

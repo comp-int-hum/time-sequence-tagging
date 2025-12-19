@@ -14,22 +14,6 @@ def batch_items(items, batch_size):
         yield items[:batch_size]
         items = items[batch_size:]
 
-def get_flattened_text_units(structure):
-    texts = []
-
-    def traverse(node):
-        if isinstance(node, list):
-            for item in node:
-                traverse(item)
-        elif isinstance(node, dict):
-            if "text" in node:
-                texts.append(node["text"])
-            elif "subunits" in node:
-                traverse(node["subunits"])
-
-    traverse(structure)
-    return texts
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -62,7 +46,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     model = AutoModel.from_pretrained(args.model_id)
     model.to(device)
-                
+
     with gzip.open(args.input, "rt") as input_file, gzip.open(args.output_embedding, "wt") as output_file:
         with jsonlines.Reader(input_file) as reader, jsonlines.Writer(output_file) as writer:
             for idx, doc in tqdm(enumerate(reader)):
@@ -84,4 +68,4 @@ if __name__ == "__main__":
                     "source": doc["metadata"]["source"],
                     "key": doc["key"]
                 }
-                writer.write(json.dumps(output_embedding) + "\n")
+                writer.write(output_embedding)

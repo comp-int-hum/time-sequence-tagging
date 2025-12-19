@@ -2,27 +2,29 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils.utility import make_parent_dirs_for_files
 from tqdm import tqdm
 import gzip
 from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score
 import texttable as tt
-from .models.hrnn_tagger import HRNN
+from models.hrnn_tagger import HRNN
+from models.rnn_tagger import RNNTagger
+from models.simple_tagger import SimpleTagger
 import json
 import pickle
 import os
 import sys
 from utils.batch_utils import get_batch, unpad_predictions
-from ..evaluation.evaluate import apply_metrics
+from utils.utility import make_parent_dirs_for_files
+from scripts.evaluation.evaluate import apply_metrics
 import logging
 
 logger = logging.getLogger(__name__)
 
-def calculate_loss(predictions, teacher_labels, layer_weights, balance_pos_neg = None, device = "cpu"):
+def calculate_loss(predictions, teacher_labels, layer_loss_weights, balance_pos_neg = None, device = "cpu"):
     """
     predictions: transition_probs (batch_size, seq_len, num_layers - 1)
     teacher_labels: Tensor of true labels (shape: batch_si[[ze, seq_len, num_layers-1)
-    layer_weights: List: (num_layers - 1)
+    transition_weights: List: (num_layers - 1) - signifies the weights for the transition layers/probs
     
     Returns:
        overall_loss: elementwise loss (averaged over sequence and batch)
@@ -39,7 +41,7 @@ def calculate_loss(predictions, teacher_labels, layer_weights, balance_pos_neg =
     teacher_labels = teacher_labels.view(-1, num_layers_minus_one) # (batch_size * seq_len, num_classes)
     
     # Get layer weights and convert to tensor
-    layer_weights_tensor = torch.tensor(layer_weights, dtype=predictions.dtype, device = device)
+    layer_weights_tensor = torch.tensor(layer_loss_weights, dtype=predictions.dtype, device = device)
     
     # Define loss function
     loss_fn = nn.BCELoss(reduction = "none")
@@ -124,7 +126,8 @@ def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device=
             
             running_loss += loss.item()
             
-            if batch_idx % 10 == 0:  # Log every 10 batches
+            # Log every 10
+            if batch_idx % 10 == 0:
                 logger.debug(f"Batch {batch_idx}/{len(batches[0])}: loss = {loss.item():.6f}")
     
     avg_loss = running_loss / len(batches[0])
@@ -138,48 +141,48 @@ def run_model(model, optimizer, batches, layer_weights, balance_pos_neg, device=
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train Hierarchical RNN for sequence boundary detection")
-    parser.add_argument("--train", dest="train", required=True, help="Train file")
-    parser.add_argument("--dev", dest="dev", required=True, help="Dev file")
+    parser.add_argument("--train", dest="train", nargs = 3, required=True, help="Train data, labels, and embedding file in that order")
+    parser.add_argument("--dev", dest="dev", nargs = 3, required=True, help="Dev data, labels, and embedding file in that order")
+    parser.add_argument("--architecture", dest = "architecture", help = "Architecture type (HRNN, RNN, NaiveClassifier)")
     
     parser.add_argument("--train_output", dest="train_output", required=True, help="Train data output")
     parser.add_argument("--dev_output", dest="dev_output", required=True, help="Dev data output")
-    parser.add_argument("--training_summary", dest="training_summary", required=True, help="Training summary results file")
-    parser.add_argument("--training_stats", dest="training_stats", required=True, help="Training statistics (loss, metrics)")
-    parser.add_argument("--model", dest="model", required=True, help="Trained model")
+    parser.add_argument("--train_stats", dest="train_stats", required=True, help="Training statistics summary file")
+    parser.add_argument("--train_dump", dest="train_dump", required=True, help="All training data dumped (loss, metrics)")
+    parser.add_argument("--trained_model", dest="trained_model", required=True, help="Trained model")
     
     
     parser.add_argument("--teacher_ratio", type=float, help="Teacher ratio to use")
     parser.add_argument("--threshold", type=float, default=0.5, help="Prediction threshold for training loop")
-    parser.add_argument("--hrnn_layer_names", dest="hrnn_layer_names", nargs="+", default=["paragraphs", "chapters"], help="Names of hierarchical layers in model")
+    parser.add_argument("--hrnn_layer_names", dest="hrnn_layer_names", nargs="+", default=["sentences", "paragraphs", "chapters"], help="Names of hierarchical layers in model")
     parser.add_argument("--temperature", type=float, dest="temperature", default=1.0, help="Temperature for inference")
     
     # Training params
     parser.add_argument("--num_epochs", dest="num_epochs", type=int, required=True, help="number of epochs to train")
     parser.add_argument("--batch_size", dest="batch_size", type=int, default=32, help="Batch size")
     parser.add_argument("--dropout", dest="dropout", type=float, default=0.4)
-    parser.add_argument("--layer_weights", dest="layer_weights", nargs="*", type=float, help="Weights for different hierarchical layers")
+    parser.add_argument("--layer_loss_weights", dest="layer_loss_weights", nargs="*", type=float, help="Layer loss weights for transition layers")
     parser.add_argument("--balance_pos_neg", nargs=2, type=float, help="Whether to balance positive and negative examples")
     
     args, rest = parser.parse_known_args()
     
-    logger.info("Starting HRNN training")
-    logger.info(f"Training file: {args.train}")
-    logger.info(f"Development file: {args.dev}")
-    logger.info(f"Number of epochs: {args.num_epochs}")
-    logger.info(f"Batch size: {args.batch_size}")
-    logger.info(f"Dropout: {args.dropout}")
-    logger.info(f"Teacher ratio: {args.teacher_ratio}")
-    logger.info(f"Temperature: {args.temperature}")
-    logger.info(f"Threshold: {args.threshold}")
-    logger.info(f"Layer names: {args.hrnn_layer_names}")
-    logger.info(f"Balance pos/neg: {args.balance_pos_neg}")
-    
-    make_parent_dirs_for_files([args.training_summary, args.train_output, args.dev_output, args.model])
+    logger.info(
+        f"Starting HRNN training with config:\n"
+        f"  Train file: {args.train}\n"
+        f"  Dev file: {args.dev}\n"
+        f"  Epochs: {args.num_epochs} | Batch size: {args.batch_size}\n"
+        f"  Dropout: {args.dropout} | Teacher ratio: {args.teacher_ratio}\n"
+        f"  Temperature: {args.temperature} | Threshold: {args.threshold}\n"
+        f"  Model layers: {args.hrnn_layer_names} | Balance pos/neg: {args.balance_pos_neg}"
+    )
+
+    make_parent_dirs_for_files([args.train_dump, args.train_stats, args.train_output, args.dev_output, args.trained_model])
     
     torch.cuda.empty_cache()
     
     if torch.cuda.is_available():
         device = "cuda"
+        print(f"CUDA IN USE")
         logger.info(f"Using CUDA device: {torch.cuda.get_device_name()}")
         logger.info(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     else:
@@ -187,56 +190,73 @@ if __name__ == "__main__":
         logger.info("cpu")
     
     # Get batches
-    train_batches = get_batch(args.train, batch_size=args.batch_size, device=device)
-    dev_batches = get_batch(args.dev, batch_size=args.batch_size, device=device)
-    logger.info(f"Loaded {len(train_batches['inputs'][0])} training batches")
-    logger.info(f"Loaded {len(dev_batches['inputs'][0])} development batches")
+    train_batches = get_batch(*args.train, batch_size=args.batch_size, device=device)
+    dev_batches = get_batch(*args.dev, batch_size=args.batch_size, device=device)
+    logger.info(f"Loaded {len(train_batches['inputs'][0])} train batches")
+    logger.info(f"Loaded {len(dev_batches['inputs'][0])} dev batches")
     
     metrics = [f1_score, recall_score, precision_score, accuracy_score]
     
     # Get data sizes
     try:
-        with gzip.open(args.train, "rt") as ifd:
-            j = json.loads(ifd.readline())
-            emb_dim = len(j["flattened_embeddings"][0])
-            num_layers_minus_one = len(j["hierarchical_labels"][0])
+        with gzip.open(args.train[2], "rt") as efd:
+            j = json.loads(efd.readline())
+            emb_dim = len(j["embeddings"][0])
             logger.info(f"Embedding dimension: {emb_dim}")
-            logger.info(f"Number of hierarchical layers - 1: {num_layers_minus_one}")
+
+        with gzip.open(args.train[1], "rt") as lfd:
+            l = json.loads(lfd.readline())
+            num_transitions = len(l["labels"].keys())
+            logger.info(f"Number of transitions: {num_transitions}")
+
     except Exception as e:
         logger.error(f"Error getting data dimensions: {str(e)}")
         raise
+
+    layer_loss_weights = args.layer_loss_weights if args.layer_loss_weights else [1.0] * num_transitions
+    logger.info(f"Layer loss weights: {layer_loss_weights}")
+
+    match args.architecture:
+        case "HRNN":
+            model = HRNN(
+                input_size = emb_dim,
+                hidden_size = 512,
+                num_layers = 3,
+                layer_names = args.hrnn_layer_names,
+                dropout = args.dropout,
+                device = device
+            )
+        case "RNN":
+            model = RNNTagger(
+                lstm_input_size = emb_dim,
+                task_num=2,                 # number of classification heads (e.g., for paragraphs and chapters)
+                # output_layers=1,            
+                # lstm_num_layers=2,        
+                # lstm_hidden_size=256,
+                # mlp_layer_sizes=[128, 64],
+                dropout=args.dropout
+            )
+        case "SimpleTagger":
+            model = SimpleTagger(
+                input_size = emb_dim,
+                task_num = 2,
+                task_size = 1,
+            )
+        case _:
+            raise ValueError(f"No matching tagger for name: {args.architecture}")
     
-    layer_weights = args.layer_weights if args.layer_weights else [1.0] * num_layers_minus_one
-    logger.info(f"Layer weights: {layer_weights}")
+    logger.info(f"Model architecture:\n{model}")
     
-    logger.info("Initializing HRNN model...")
-    try:
-        model = HRNN(
-            input_size=emb_dim,
-            hidden_size=512,
-            num_layers=3,
-            layer_names=args.hrnn_layer_names,
-            dropout=0.,
-            device=device
-        )
-        
-        logger.info(f"Model architecture:\n{model}")
-        
-        # Count parameters
-        total_params = sum(p.numel() for p in model.parameters())
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        logger.info(f"Total parameters: {total_params:,}")
-        logger.info(f"Trainable parameters: {trainable_params:,}")
-        
-    except Exception as e:
-        logger.error(f"Error initializing model: {str(e)}")
-        raise
+    # Total params
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Total parameters: {total_params:,}")
+    logger.info(f"Trainable parameters: {trainable_params:,}")
 
     model.to(device)
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    logger.info("Initialized Adam optimizer with learning rate 0.001")
 
     # Losses & layer_losses
     train_losses = []
@@ -272,7 +292,7 @@ if __name__ == "__main__":
                 model,
                 optimizer,
                 train_batches["inputs"],
-                layer_weights,
+                layer_loss_weights,
                 args.balance_pos_neg,
                 device=device,
                 is_train=True,
@@ -283,7 +303,7 @@ if __name__ == "__main__":
                 model,
                 None,
                 dev_batches["inputs"],
-                layer_weights,
+                layer_loss_weights,
                 args.balance_pos_neg,
                 device=device,
                 is_train=False,
@@ -309,7 +329,7 @@ if __name__ == "__main__":
                 unpadded_dev_outputs["scores"],
                 unpadded_dev_outputs["true_labels"],
                 metrics,
-                args.hrnn_layer_names,
+                args.hrnn_layer_names[1:],
                 args.threshold
             ))
             
@@ -320,35 +340,32 @@ if __name__ == "__main__":
                 best_model = model.state_dict()
                 to_save_train = train_guesses
                 to_save_dev = dev_guesses
-                logger.info(f"New best model found at epoch {epoch + 1} with dev loss: {dev_loss:.6f}")
+                logger.info(f"New best model found at epoch {epoch} with dev loss: {dev_loss:.6f}")
             
             # Log epoch results
-            logger.info(f"Epoch {epoch + 1} completed:")
-            logger.info(f"  Train loss: {train_loss:.6f}")
-            logger.info(f"  Dev loss: {dev_loss:.6f}")
-            logger.info(f"  Train layer losses: {train_layer_losses}")
-            logger.info(f"  Dev layer losses: {dev_layer_losses}")
+            logger.info(
+                f"Epoch {epoch + 1} completed:\n"
+                f"  Train loss: {train_loss:.6f}\n"
+                f"  Dev loss: {dev_loss:.6f}\n"
+                f"  Train layer losses: {train_layer_losses}\n"
+                f"  Dev layer losses: {dev_layer_losses}"
+            )
             
-            summary_table.add_row([epoch + 1, f"{train_loss:.6f}", train_layer_losses, f"{dev_loss:.6f}", dev_layer_losses])
+            summary_table.add_row([epoch, f"{train_loss:.6f}", train_layer_losses, f"{dev_loss:.6f}", dev_layer_losses])
         
-        logger.info("Training completed successfully!")
         logger.info(f"Best model was found at epoch {best_model_epoch + 1} with dev loss: {best_dev_loss:.6f}")
         
     except Exception as e:
         logger.error(f"Error during training: {str(e)}")
         raise
-    
-    # Save results
-    logger.info("Saving training results...")
+
     
     try:
-        with open(args.training_summary, "w") as summary_file:
+        with open(args.train_stats, "w") as summary_file:
             summary_file.write(summary_table.draw())
-        logger.info(f"Training summary saved to: {args.training_summary}")
         
         if best_model is not None:
-            torch.save(best_model, args.model)
-            logger.info(f"Best model saved to: {args.model}")
+            torch.save(best_model, args.trained_model)
         
         # Save train outputs
         with open(args.train_output, "wb") as train_output_file:
@@ -364,7 +381,6 @@ if __name__ == "__main__":
                 },
                 train_output_file
             )
-        logger.info(f"Training outputs saved to: {args.train_output}")
             
         # Save dev outputs
         with open(args.dev_output, "wb") as dev_output_file:
@@ -383,7 +399,7 @@ if __name__ == "__main__":
         logger.info(f"Development outputs saved to: {args.dev_output}")
             
         # Save training statistics
-        with open(args.training_stats, "wb") as training_stats_file:
+        with open(args.train_dump, "wb") as training_stats_file:
             pickle.dump(
                 {
                     "train_losses": train_losses,
@@ -395,9 +411,6 @@ if __name__ == "__main__":
                 },
                    training_stats_file
             )
-        logger.info(f"Training statistics saved to: {args.training_stats}")
-        
-        logger.info("All outputs saved successfully!")
         
     except Exception as e:
         logger.error(f"Error saving results: {str(e)}")

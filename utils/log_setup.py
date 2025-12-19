@@ -19,7 +19,18 @@ def setup_logging():
     for handler in [console_handler, base_handler, error_handler]:
         handler.setFormatter(formatter)
 
-    logging.basicConfig(
-        level=logging.DEBUG,
-        handlers=[base_handler, console_handler, error_handler]
-    )
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(base_handler)
+    root_logger.addHandler(error_handler)
+
+
+    # logging.basicConfig(
+    #     level=logging.DEBUG,
+    #     handlers=[base_handler, console_handler, error_handler]
+    # )

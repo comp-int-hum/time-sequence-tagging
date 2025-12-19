@@ -135,6 +135,10 @@ if __name__ == "__main__":
                         ),
                         "structure": get_structure(soup, args.max_title_len, args.chapter_filters)
                     }
+
+                    if extracted_text["structure"]:
+                        ofd.write(json.dumps(extracted_text) + "\n")
+                        fully_extracted +=1
                     
                     # if extracted_text["chapters"]:
                     #     partial_extracted += 1

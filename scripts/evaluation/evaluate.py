@@ -3,7 +3,7 @@ import torch
 import jsonlines
 import torch.nn as nn
 import torch.optim as optim
-from utility import open_file, make_parent_dirs
+from utils.utility import open_file, make_parent_dirs
 import torch.nn.utils.rnn as rnn_utils
 import numpy as np
 import logging
@@ -15,8 +15,8 @@ import json
 import pickle
 import os
 import torch
-from batch_utils import get_batch, unpad_predictions
-from generic_hrnn import GenericHRNN
+from utils.batch_utils import get_batch, unpad_predictions
+from scripts.training.models.hrnn_tagger import HRNN
 
 logger = logging.getLogger("evaluate_model")
 
@@ -67,9 +67,14 @@ def get_f1_score(guesses, golds, threshold = 0.5):
         num_els += batch_size
     
     return sum(f1_scores) / num_els if num_els > 0 else 0
-
+# Example:
+# scores = tensor([
+#     [0.82, 0.41],   # scores for paragraph, chapter
+#     [0.55, 0.89],
+#     ...
+# ])
 def apply_metrics(scores, true_labels, metrics, hrnn_layer_names, threshold = 0.5):
-    _, num_layers_minus_one = true_labels.shape
+    _, num_layers_minus_one = true_labels.shape # (N, L)
     
     layerwise_metrics = []
     
@@ -105,7 +110,7 @@ def apply_metrics(scores, true_labels, metrics, hrnn_layer_names, threshold = 0.
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", dest = "input", help = "Input data file")
+    parser.add_argument("--input", dest = "input", nargs = 3, help = "Input data file: data, label, embed")
     parser.add_argument("--model", dest="model", help = "Trained model")
     
     parser.add_argument("--output", dest = "output", help = "Output file for trained model")
@@ -128,7 +133,7 @@ if __name__ == "__main__":
 
 
     # Get batches
-    input_batches = get_batch(args.input, batch_size=args.batch_size, device = device)
+    input_batches = get_batch(*args.input, batch_size=args.batch_size, device = device)
     
     with gzip.open(args.input, "rt") as ifd:
         # print(ifd.readline(),  flush = True)
@@ -138,7 +143,7 @@ if __name__ == "__main__":
         print(f"Num layers - 1: {num_layers_minus_one}")
     
     
-    model = GenericHRNN(
+    model = HRNN(
         input_size = emb_dim,
         hidden_size = 512,
         num_layers = 3,

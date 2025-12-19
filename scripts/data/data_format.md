@@ -82,12 +82,15 @@ data_content:
     }
 ```
 
-hierarchical_labels:
+labels:
 ```json
     {
         "base_unit": hierarchy_order[0],
-        "labels": extract_hierarchical_boundaries(structure),
-        "hierarchy_order": hierarchy_order,
+        "labels": {
+            "chapters": [1, 0, 0, 0, ...],
+            "paragraphs": [1, 0, 1, 0, ...],
+        },
+        "hierarchy_order": ["sentences", "paragraphs", "chapters"],
         "source": doc["metadata"]["source"],
         "key": doc_num
     }

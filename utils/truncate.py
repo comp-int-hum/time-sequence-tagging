@@ -1,6 +1,7 @@
 import argparse
 from tqdm import tqdm
 import gzip
+from utility import make_parent_dirs_for_files
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -9,6 +10,8 @@ if __name__ == "__main__":
     parser.add_argument("--retain_lines", dest = "retain_lines", type = int, help = "Number of lines to retain")
     args, _ = parser.parse_known_args()
     
+    make_parent_dirs_for_files([args.output])
+
     with gzip.open(args.input, "rt") as input_file, gzip.open(args.output, "wt") as output_file:
         for _ in tqdm(range(args.retain_lines), desc = "Downsampling files"):
             next_text = next(input_file, None)

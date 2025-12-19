@@ -1,10 +1,11 @@
 import jsonlines
-from utility import open_file
+from utils.utility import open_file
 import torch.nn.utils
 import torch
 # from torch.nn.utils.rnn import pad_sequence
 import torch.nn.utils.rnn as rnn_utils
 from itertools import accumulate
+import json
 
 def unpack_data(datapoint):
     """Unpack data from datapoint dict
@@ -19,8 +20,13 @@ def unpack_data(datapoint):
     # return datapoint.pop("flattened_embeddings"), labels, datapoint
     return datapoint["flattened_embeddings"], datapoint["hierarchical_labels"], datapoint["metadata"], datapoint["flattened_sentences"]
 
+def sort_labels_by_hierarchy(label_dict):
+    labels = label_dict.get("labels", {})
+    order = label_dict.get("hierarchy_order", [])
+    
+    return [labels[key] for key in order if key in labels]
 
-def get_batch(filepath, batch_size=32, device="cpu"):
+def get_batch(data_file, label_file, embedding_file, batch_size=32, device="cpu"):
     """Create batches based on file path and batch_size
 
     Args:
@@ -31,8 +37,8 @@ def get_batch(filepath, batch_size=32, device="cpu"):
     Returns:
         tuple: (data_batches, label_batches), metadata_batches
     """
-    data_batches, label_batches, metadata_batches, length_batches, sentence_batches = [], [], [], [], []
-    data_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
+    embed_batches, label_batches, metadata_batches, length_batches, sentence_batches = [], [], [], [], []
+    embed_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
     
     # Helper function for appending batches and padding if model_type is sequence_tagger
     def append_data(batch_data, batch_label, batch_metadata, batch_sentence):
@@ -40,12 +46,19 @@ def get_batch(filepath, batch_size=32, device="cpu"):
         # print(f"Sample batch data: {batch_data}")
         batch_lengths = [len(l) for l in batch_label]
         batch_data = rnn_utils.pad_sequence([torch.tensor(d) for d in batch_data], batch_first=True) # [batch_size, seq_len, emb_size]
+        # batch_label = rnn_utils.pad_sequence([torch.tensor(l) for l in batch_label], batch_first=True).to(device)
+        batch_label = [
+            torch.tensor(l, dtype=torch.long).T  # transpose (num_layers, seq_len) to (seq_len, layers)
+            for l in batch_label
+        ]
+
+        batch_label = rnn_utils.pad_sequence(batch_label, batch_first=True).to(device)  # [batch, max_seq_len, num_layers]
+
         print(f"Batch data shape: {batch_data.shape}")
-        batch_label = rnn_utils.pad_sequence([torch.tensor(l) for l in batch_label], batch_first=True).to(device)
         print(f"Batch label shape: {batch_label.shape}")
         # [batch_size, seq_len, num_layers]
         
-        data_batches.append(batch_data.to(device))
+        embed_batches.append(batch_data.to(device))
         label_batches.append(batch_label)
         metadata_batches.append(batch_metadata)
         length_batches.append(batch_lengths)
@@ -53,28 +66,31 @@ def get_batch(filepath, batch_size=32, device="cpu"):
         
     # Open data file
     total = 0
-    with open_file(filepath, "r") as source_file, jsonlines.Reader(source_file) as datapoints:
-        for i, datapoint in enumerate(datapoints):
+    with open_file(data_file, "rt") as df, open_file(label_file, "rt") as lf, open_file(embedding_file, "rt") as ef:
+        for d, l, e in zip(df, lf, ef):
+            data_dict = json.loads(d)
+            label_dict = json.loads(l)
+            embedding_dict = json.loads(e)
+        
             total += 1
-            data, label, metadata, sentences = unpack_data(datapoint)
             
             # Append data
-            data_batch.append(data)
-            label_batch.append(label)
-            metadata_batch.append(metadata)
-            sentence_batch.append(sentences)
+            embed_batch.append(embedding_dict["embeddings"])
+            label_batch.append(sort_labels_by_hierarchy(label_dict))
+            metadata_batch.append(data_dict["metadata"])
+            sentence_batch.append(data_dict["content"])
             
             # Add batch if batch_sized has been reached
-            if len(data_batch) == batch_size:
-                append_data(data_batch, label_batch, metadata_batch, sentence_batch)
-                data_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
+            if len(embed_batch) == batch_size:
+                append_data(embed_batch, label_batch, metadata_batch, sentence_batch)
+                embed_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []
         
         # Add leftover data items to a batch
-        if data_batch:
-            append_data(data_batch, label_batch, metadata_batch, sentence_batch)
+        if embed_batch:
+            append_data(embed_batch, label_batch, metadata_batch, sentence_batch)
 
     return {
-        "inputs": (data_batches, label_batches),
+        "inputs": (embed_batches, label_batches),
         "sentences": sentence_batches,
         "metadata": metadata_batches,
         "lengths": length_batches,

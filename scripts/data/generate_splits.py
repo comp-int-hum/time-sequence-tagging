@@ -4,11 +4,12 @@ import random
 import gzip
 import logging
 from tqdm import tqdm
+from utils.utility import make_parent_dirs_for_files
 
 logger = logging.getLogger(__name__)
 
 def open_writer(path):
-    return jsonlines.Writer(gzip.open(path, "wt"))
+    return gzip.open(path, "wt")
 
 if __name__ == "__main__":
 
@@ -33,6 +34,8 @@ if __name__ == "__main__":
         
     logger.info("Creating datapoints")
 
+    make_parent_dirs_for_files([args.data_input, args.embedding_input, args.label_input] + args.train + args.dev + args.test)
+
     train_writers = [open_writer(p) for p in args.train]
     dev_writers = [open_writer(p) for p in args.dev]
     test_writers = [open_writer(p) for p in args.test]
@@ -40,25 +43,24 @@ if __name__ == "__main__":
     split_counts = {"train": 0, "dev": 0, "test": 0}
     
     with gzip.open(args.data_input, "rt") as di, gzip.open(args.label_input, "rt") as li, gzip.open(args.embedding_input, "rt") as ei:
-        with gzip.open(args.train, mode="wt") as train_ofd, gzip.open(args.dev, mode="wt") as dev_ofd, gzip.open(args.test, mode="wt") as test_ofd:
-            counter = 0
-            for idx, (data_doc, label_doc, embedding_doc) in tqdm(enumerate(zip(di, li, ei)), desc = "Iterating over datapoints"):
-                
-                rv = random.random()
-                if rv < args.train_proportion:
-                    writers = train_writers
-                    split = "train"
-                elif rv < args.train_proportion + args.dev_proportion:
-                    writers = dev_writers
-                    split = "dev"
-                else:
-                    writers = test_writers
-                    split = "test"
+        counter = 0
+        for idx, (data_doc, label_doc, embedding_doc) in tqdm(enumerate(zip(di, li, ei)), desc = "Iterating over datapoints"):
+            
+            rv = random.random()
+            if rv < args.train_proportion:
+                writers = train_writers
+                split = "train"
+            elif rv < args.train_proportion + args.dev_proportion:
+                writers = dev_writers
+                split = "dev"
+            else:
+                writers = test_writers
+                split = "test"
 
-                for writer, doc in zip(writers, [data_doc, label_doc, embedding_doc]):
-                    writer.write(doc)
+            for writer, doc in zip(writers, [data_doc, label_doc, embedding_doc]):
+                writer.write(doc)
 
-                split_counts[split] += 1
+            split_counts[split] += 1
 
     
     for writer in train_writers + dev_writers + test_writers:

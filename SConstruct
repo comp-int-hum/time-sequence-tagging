@@ -1,3 +1,4 @@
+from bdb import Breakpoint
 import os
 import os.path
 from steamroller import Environment
@@ -29,6 +30,8 @@ vars.AddVariables(
     ("DATA_ROOT", "", os.path.expanduser("~/corpora")),
     ("WORK_DIR", "", "work"),
     ("LOCAL_DATA", "", ""),
+    ("TRAIN_SOURCE", "", "chicago"),
+    ("DATASETS_TO_PROCESS", "", ["chicago", "chapterbreak"])
 )
 
 # Datasets
@@ -86,6 +89,7 @@ vars.AddVariables(
     ("EXPERIMENTS", "", []),
     ("LOC_TAGS_TO_KEEP", "Library of Congress tags indicating a text may be kept", ["PS", "PE"]),
     ("LAYER_WEIGHTS", "", [1.0]),
+    ("ARCHITECTURE", "", ["RNN", "HRNN"])
 )
 
 # Overrides
@@ -107,7 +111,7 @@ vars.AddVariables(
 )
 
 vars.AddVariables(
-    ("HRNN_LAYER_NAMES", "Hierarchical level names", ["paragraphs", "chapters"]),
+    ("HRNN_LAYER_NAMES", "Hierarchical level names", ["sentences", "paragraphs", "chapters"]),
     ("VIS_NUM", "Visualization Number", 4)
 )
 
@@ -190,7 +194,7 @@ env = Environment(
         "EncodeData": Builder(
             action= ("python scripts/data/encode_data.py "
                      "--input ${SOURCES[0]} "
-                     "--output_embeddings ${TARGETS[0]} "
+                     "--output_embedding ${TARGETS[0]} "
                      "--model_id ${MODEL_ID} "
                      "--max_toks ${MAX_TOKS} "
                      "--batch_size ${BATCH_SIZE}"
@@ -213,13 +217,73 @@ env = Environment(
                 "${'--random_seed %s' % RANDOM_SEED if RANDOM_SEED else ''}"
                 # "${RANDOM_SEED and '--random_seed' ${RANDOM_SEED} or ''}"
             )
-        )
+        ),
+        
+        # 6. TRAIN HRNN
+        "TrainHRNN": Builder(
+            action=(
+                "python scripts/training/train_hrnn.py "
+                "--train ${SOURCES[0]} ${SOURCES[1]} ${SOURCES[2]} "
+                "--dev ${SOURCES[3]} ${SOURCES[4]} ${SOURCES[5]} "
+                "--architecture ${ARCHITECTURE} "
+                "--train_output ${TARGETS[0]} "
+                "--dev_output ${TARGETS[1]} "
+                "--train_stats ${TARGETS[2]} "
+                "--train_dump ${TARGETS[3]} "
+                "--trained_model ${TARGETS[4]} "
+                "--num_epochs ${NUM_EPOCHS} "
+                "--batch_size ${BATCH_SIZE} "
+                "--dropout ${DROPOUT} "
+                "--threshold ${THRESHOLD} "
+                "--temperature ${TEMPERATURE} "
+                "--hrnn_layer_names ${HRNN_LAYER_NAMES} "
+                "${LAYER_LOSS_WEIGHTS and '--layer_loss_weights ' + ' '.join(map(str, LAYER_LOSS_WEIGHTS)) or ''} "
+                "${BALANCE_POS_NEG and '--balance_pos_neg ' + ' '.join(map(str, BALANCE_POS_NEG)) or ''} "
+                "${TEACHER_RATIO and '--teacher_ratio ' + str(TEACHER_RATIO) or ''}"
+            )
+        ),
+        # Plot metrics
+        "PlotTrainingMetrics": Builder(
+            action=(
+                "python scripts/evaluation/metrics/plot_training_metrics.py "
+                "--input ${SOURCES[0]} "
+                "--loss_curves ${TARGETS[0]} "
+                "--layer_loss_curves ${TARGETS[1:3]} "
+                # "${HRNN_LAYER_NAMES and '--hrnn_layer_names' + ' '.join(HRNN_LAYER_NAMES) or ''}"
+            )
+        ),
+        "ComputeROCMetrics": Builder(
+            action=(
+                "python scripts/evaluation/metrics/compute_roc_metrics.py "
+                "--input ${SOURCES[0]} "
+                "--optimal_thresholds_output ${TARGETS[0]} "
+                "--roc_by_layer ${TARGETS[1:]} "
+                # "${HRNN_LAYER_NAMES and '--hrnn_layer_names' + ' '.join(HRNN_LAYER_NAMES) or ''}"
+            )
+        ),
+        "ComputeConfidenceMetrics": Builder(
+            action=(
+                "python scripts/evaluation/metrics/compute_text_confidence_metrics.py "
+                "--input ${SOURCES[0]} "
+                "--confidence_matrix ${TARGETS[0]} "
+                # "${HRNN_LAYER_NAMES and '--hrnn_layer_names' + ' '.join(HRNN_LAYER_NAMES) or ''} "
+                "--threshold ${THRESHOLD}"
+            )
+        ),
+        # Utils
+        "TruncateFile": Builder(
+            action=(
+                "python utils/truncate.py "
+                "--input ${SOURCES[0]} "
+                "--output ${TARGETS[0]} "
+                "--retain_lines ${RETAIN_LINES}"
+            )
+        ),
 
     }
 )
 
 env["ENV"]["PYTHONPATH"] = os.getcwd()
-
 
 def cpu_task_config(name, time_required, memory_required=env["GRID_MEMORY"]):
     return {
@@ -243,152 +307,256 @@ def gpu_task_config(name, time_required, memory_required=env["GRID_MEMORY"]):
     }
 
 # Datasets
-
-datasets = {}
-
-# Process gutenberg docs
-
-# gutenberg_docs = env.FetchFromGutenberg(
-#     source = [],
-#     target = [f"work/datasets/gutenberg/gutenberg_docs.jsonl.gz"],
-# )
+processed_datasets = {}
 
 # Process structured chicago docs
-structured_chicago_docs = env.ExtractStructureFromChicago(
-    source=[],
-    target=[
-        "work/datasets/chicago/structured_chicago_texts.jsonl.gz",
-        "work/datasets/chicago/extracted_chicago_texts_catalog.txt.gz"
-    ],
-    MIN_CHAPTERS=3,
-)
+if "chicago" in env.get("DATASETS_TO_PROCESS", []):
+    structured_chicago_docs = env.ExtractStructureFromChicago(
+        source = [],
+        target = [
+            "work/datasets/chicago/structured_chicago_texts.jsonl.gz",
+            "work/datasets/chicago/extracted_chicago_texts_catalog.txt.gz"
+        ],
+        MIN_CHAPTERS = 3,
+    )
 
-cleaned_chicago_docs = env.CleanStructuredData(
-    source = [structured_chicago_docs],
-    target = ["work/datasets/chicago/cleaned_structured_chicago_texts.jsonl.gz"],
-    FILTERS = env["SENTENCE_FILTERS"],
-    MIN_CH_LEN = 2,
-    MERGE_PARAGRAPHS = True,
-    **cpu_task_config("clean_chicago_docs", "12:00:00", "64G")
-)
+    cleaned_chicago_docs = env.CleanStructuredData(
+        source = [structured_chicago_docs],
+        target = ["work/datasets/chicago/cleaned_structured_chicago_texts.jsonl.gz"],
+        FILTERS = env["SENTENCE_FILTERS"],
+        MIN_CH_LEN = 2,
+        MERGE_PARAGRAPHS = True,
+        **cpu_task_config("clean_chicago_docs", "12:00:00", "64G")
+    )
 
-# Convert to data, labels, and embeddings
-chicago_data, chicago_labels = env.ProcessStructuredText(
-    source = [cleaned_chicago_docs],
-    target = ["work/datasets/chicago/chicago_data.jsonl.gz",
-              "work/datasets/chicago/chicago_hierachical_data.jsonl.gz"],
-)
+    # Convert to data, labels, and embeddings
+    chicago_data, chicago_labels = env.ProcessStructuredText(
+        source = [cleaned_chicago_docs],
+        target = ["work/datasets/chicago/chicago_data.jsonl.gz",
+                "work/datasets/chicago/chicago_hierachical_data.jsonl.gz"],
+    )
 
-chicago_embeddings = env.EncodeData(
-    source = [chicago_data],
-    target = [f"work/datasets/chicago/chicago_embeddings.jsonl.gz"],
-    MODEL_ID = env["MODELS"][0]["id"],
-    MAX_TOKS = env["MAX_TOKS"],
-    BATCH_SIZE = 512
-)
+    processed_datasets["chicago"] = {
+        "data": chicago_data,
+        "labels": chicago_labels,
+    }
 
 # Process chapterbreak docs into data, labels, and embeddings
-chapterbreak_data, chapterbreak_labels = env.RestructureChapterbreak(
-    source = [env.get("CHAPTERBREAK_FILE")],
-    target = [f"work/datasets/chapterbreak/chapterbreak_data.jsonl.gz",
-              f"work/datasets/chapterbreak/chapterbreak_hierarchical_labels.jsonl.gz"],
-    SPLITS = ["pg19", "ao3"],
-    FILTERS = env["SENTENCE_FILTERS"]
-)
+if "chapterbreak" in env.get("DATASETS_TO_PROCESS", []):
+    chapterbreak_data, chapterbreak_labels = env.RestructureChapterbreak(
+        source = [env.get("CHAPTERBREAK_FILE")],
+        target = [f"work/datasets/chapterbreak/chapterbreak_data.jsonl.gz",
+                f"work/datasets/chapterbreak/chapterbreak_hierarchical_labels.jsonl.gz"],
+        SPLITS = ["pg19", "ao3"],
+        FILTERS = env["SENTENCE_FILTERS"]
+    )
 
-chapterbreak_embeddings = env.EncodeData(
-    source = [chapterbreak_data],
-    target = [f"work/datasets/chapterbreak/chapterbreak_embeddings.jsonl.gz"],
-    MODEL_ID = env["MODELS"][0]["id"],
-    MAX_TOKS = env["MAX_TOKS"],
-    BATCH_SIZE = 512
-)
+    processed_datasets["chapterbreak"] = {
+        "data": chapterbreak_data,
+        "labels": chapterbreak_labels,
+    }
 
-# Split data for chapterbreak
-env.GenerateSplits(
-    source = [chapterbreak_data, chapterbreak_labels, chapterbreak_embeddings],
+# Process gutenberg docs
+if "gutenberg" in env.get("DATASETS_TO_PROCESS", []):
+    print("gutenberg not ready")
+
+    # gutenberg_docs = env.FetchFromGutenberg(
+    #     source = [],
+    #     target = [f"work/datasets/gutenberg/gutenberg_docs.jsonl.gz"],
+    # )
+
+
+TRAIN_SOURCE = env["TRAIN_SOURCE"]
+TOY_RUN = int(env.get("TOY_RUN", 0))
+
+if TRAIN_SOURCE not in processed_datasets:
+    raise KeyError(f"Train source '{env['TRAIN_SOURCE']}' has not been processed. "
+                   f"Available datasets: {list(processed_datasets.keys())}")
+
+train_dataset = processed_datasets[TRAIN_SOURCE]
+
+if TOY_RUN > 0:
+    # Truncate and then encode
+    toy_root = f"{env['TOY_ROOT']}/{TRAIN_SOURCE}"
+    
+    toy_data = env.TruncateFile(
+        source=[train_dataset["data"]],
+        target=[f"{toy_root}/{TRAIN_SOURCE}/{TOY_RUN}_data.jsonl.gz"],
+        RETAIN_LINES=TOY_RUN
+    )
+
+    toy_labels = env.TruncateFile(
+        source=[train_dataset["labels"]],
+        target=[f"{toy_root}/{TRAIN_SOURCE}/{TOY_RUN}_labels.jsonl.gz"],
+        RETAIN_LINES=TOY_RUN
+    )
+
+    toy_embeddings = env.EncodeData(
+        source=[toy_data[0]],
+        target=[f"{toy_root}/{TRAIN_SOURCE}/{TOY_RUN}_embeddings.jsonl.gz"],
+        MODEL_ID=env["MODELS"][0]["id"],
+        MAX_TOKS=env["MAX_TOKS"],
+        BATCH_SIZE=env.get("BATCH_SIZE", 512)
+    )
+
+    train_dataset["toyset"] = {
+        "data": toy_data[0],
+        "labels": toy_labels[0],
+        "embeddings": toy_embeddings[0]
+    }
+
+else:
+    # Full encode datasets
+    for dname, dataset in processed_datasets.items():
+        dataset["embeddings"] = env.EncodeData(
+            source = [dataset["data"]],
+            target = [f"work/datasets/{dname}/{dname}_embeddings.jsonl.gz"],
+            MODEL_ID = env["MODELS"][0]["id"],
+            MAX_TOKS = env["MAX_TOKS"],
+            BATCH_SIZE = 512
+        )
+
+if TOY_RUN > 0:
+    split_input = train_dataset["toyset"]
+    split_prefix = f"work/experiments/{TRAIN_SOURCE}/toy_{TOY_RUN}"
+else:
+    split_input = train_dataset
+    split_prefix = f"work/experiments/{TRAIN_SOURCE}/full"
+
+train_source_splits = env.GenerateSplits(
+    source = [
+        split_input["data"],
+        split_input["labels"],
+        split_input["embeddings"]
+    ],
     target = [
-        # train
-        "chapterbreak_data.train.gz",
-        "chapterbreak_labels.train.gz",
-        "chapterbreak_embeddings.train.gz",
+        f"{split_prefix}/data.train.gz",
+        f"{split_prefix}/labels.train.gz",
+        f"{split_prefix}/embeddings.train.gz",
 
-        # dev
-        "chapterbreak_data.dev.gz",
-        "chapterbreak_labels.dev.gz",
-        "chapterbreak_embeddings.dev.gz",
+        f"{split_prefix}/data.dev.gz",
+        f"{split_prefix}/labels.dev.gz",
+        f"{split_prefix}/embeddings.dev.gz",
 
-        # test
-        "chapterbreak_data.test.gz",
-        "chapterbreak_labels.test.gz",
-        "chapterbreak_embeddings.test.gz",
+        f"{split_prefix}/data.test.gz",
+        f"{split_prefix}/labels.test.gz",
+        f"{split_prefix}/embeddings.test.gz",
     ],
     TRAIN_PROPORTION = env["SPLIT_RATIOS"][0],
     DEV_PROPORTION = env["SPLIT_RATIOS"][1],
     TEST_PROPORTION = env["SPLIT_RATIOS"][2],
-    RANDOM_SEED = 0
+    RANDOM_SEED = env.get("RANDOM_SEED", 0),
+    **cpu_task_config(f"splits_{TRAIN_SOURCE}", "01:00:00", "32G")
 )
 
-# Split data for Chicago
-env.GenerateSplits(
-    source = [chicago_data, chicago_labels, chicago_embeddings],
-    target = [
-        # train
-        "work/datasets/chicago/chicago_data.train.gz",
-        "work/datasets/chicago/chicago_labels.train.gz",
-        "work/datasets/chicago/chicago_embeddings.train.gz",
+architecture_results = {}
+for architecture in env.get("ARCHITECTURE", []):
+    train_guesses, dev_guesses, training_summary, training_metrics, trained_model = env.TrainHRNN(
+        source = [train_source_splits[:6]],
+        target = [f"{split_prefix}/{architecture}/guesses/train_guesses.pkl",
+                    f"{split_prefix}/{architecture}/guesses/dev_guesses.pkl",
+                    f"{split_prefix}/{architecture}/results/train_stats.txt",
+                    f"{split_prefix}/{architecture}/results/train_dump.pkl",
+                    f"{split_prefix}/{architecture}/model/model_state.pth"],
+        BATCH_SIZE = 4,
+        ARCHITECTURE = "HRNN",
+        DROPOUT = 0.6,
+        TEACHER_RATIO = 1.0,
+        NUM_EPOCHS = env.get("EPOCHS"),
+        THRESHOLD =  env["THRESHOLD"],
+        BALANCE_POS_NEG = [1.0, 1.0],
+        TEMPERATURE = 1.0,
+        # LAYER_WEIGHTS = [1.0, layer_weight],
+        **gpu_task_config("train_hrnn", "12:00:00", "32G"),
+    )
+    architecture_results[architecture] = {
+        "train_guesses": train_guesses,
+        "dev_guesses": dev_guesses,
+        "train_summary": training_summary,
+        "train_metrics": training_metrics,
+        "trained_model": trained_model,
+    }
 
-        # dev
-        "work/datasets/chicago/chicago_data.dev.gz",
-        "work/datasets/chicago/chicago_labels.dev.gz",
-        "work/datasets/chicago/chicago_embeddings.dev.gz",
+for architecture, results in architecture_results.items():
+    # Extract outputs from training
+    training_metrics = results["train_metrics"]
+    dev_guesses = results["dev_guesses"]
 
-        # test
-        "work/datasets/chicago/chicago_data.test.gz",
-        "work/datasets/chicago/chicago_labels.test.gz",
-        "work/datasets/chicago/chicago_embeddings.test.gz",
-    ],
-    TRAIN_PROPORTION = env["SPLIT_RATIOS"][0],
-    DEV_PROPORTION = env["SPLIT_RATIOS"][1],
-    TEST_PROPORTION = env["SPLIT_RATIOS"][2],
-    RANDOM_SEED = 0
-)
-        
-# for model in env.get("MODELS", []):
-#     enc_texts = env.EncodeData(
-#         source = [transformed_chicago_docs],
-#         target = ["work/${MODEL_NAME}/encoded_texts.jsonl.gz"],
-#         MODEL_NAME=model["name"],
-#         MODEL_ID=model["id"],
-#         BATCH_SIZE=model.get("BATCH_SIZE", 64),
-#         **gpu_task_config("encode_data", "12:00:00", "32G"),
-#     )
-    
-#     encoded_chapterbreak_data = env.EncodeSequencedTexts(
-#         source = [chapterbreak_data],
-#         target = ["work/${MODEL_NAME}/encoded_chapterbreak.jsonl.gz"],
-#         MODEL_NAME=model["name"],
-#         MODEL_ID=model["id"],
-#         BATCH_SIZE=model.get("BATCH_SIZE", 64),
-#         **gpu_task_config("encode_data", "12:00:00", "32G"),
-#     )
-    
-#     if env.get("TOY_RUN", 0):
-#         print(f"Toy run: {env['TOY_RUN']}")
-#         if env.get("TOY_FILE", None):
-#             enc_texts = env.TruncateData(
-#                 source = [enc_texts],
-#                 target = [env.get("TOY_FILE")],
-#                 RETAIN_LINES = env["TOY_RUN"]
-#             )
-#         else:
-#             enc_texts = env.File(env["TOY_RUN"])
+    # Architecture-specific paths
+    arch_results_dir = f"{split_prefix}/{architecture}/results"
+    arch_guesses_dir = f"{split_prefix}/{architecture}/guesses"
+    arch_roc_dir = f"{split_prefix}/{architecture}/roc"
+    arch_conf_dir = f"{split_prefix}/{architecture}/confidence"
 
-#     seq_file = env.GenerateSequenceHRNN(
-#         source = [enc_texts],
-#         target = ["work/${MODEL_NAME}/sequence_embeddings.jsonl.gz"],
-#         MODEL_NAME=model["name"],
-#     )
+    # Plot training metrics
+    training_metrics_visualizations = env.PlotTrainingMetrics(
+        source=[training_metrics],
+        target=[
+            f"{arch_results_dir}/loss_curves.png",
+            f"{arch_results_dir}/par_layer_loss_curves.png",
+            f"{arch_results_dir}/chapter_layer_loss_curves.png",
+        ]
+    )
+
+    # ROC visualizations (one per layer)
+    roc_visualizations = [
+        f"{arch_roc_dir}/roc_curve_for_{layer_name}.png"
+        for layer_name in env["HRNN_LAYER_NAMES"][1:]
+    ]
+
+    roc_metrics = env.ComputeROCMetrics(
+        source=[dev_guesses],
+        target=[
+            f"{arch_roc_dir}/optimal_thresholds.json",
+            *roc_visualizations  # unpack image paths
+        ],
+    )
+
+    # Confidence metrics
+    confidence_matrix = env.ComputeConfidenceMetrics(
+        source=[dev_guesses],
+        target=[f"{arch_conf_dir}/confidence_matrix.json"],
+        THRESHOLD=env["THRESHOLD"],
+    )
+
+
+# training_metrics_visualizations = env.PlotTrainingMetrics(
+#     source = [training_metrics],
+#     target = [
+#         f"{split_prefix}/results/loss_curves.png",
+#         f"{split_prefix}/results/par_layer_loss_curves.png",
+#         f"{split_prefix}/results/chapter_layer_loss_curves.png",
+#     ]
+# )
+
+# # Get ROC metrics and visualizations
+# roc_visualizations = [f"{roc_path}/roc_curve_for_{layer_name}" for layer_name in env["HRNN_LAYER_NAMES"]]
+
+# roc_metrics = env.ComputeROCMetrics(
+#     source = [dev_guesses],
+#     target = [f"{roc_path}/optimal_thresholds.json",
+#                 roc_visualizations],
+# )
+
+# # Get confidence matrix
+# confidence_matrix = env.ComputeConfidenceMetrics(
+#     source = [dev_guesses],
+#     target = [f"{layer_weight_path}/confidence_matrix.json"],
+#     THRESHOLD = env["THRESHOLD"],
+# )
+
+# # Get boundary visualizations
+# layer_visualizations = [f"{visualization_path}/visualization_{num}" for num in range(env["VIS_NUM"])]
+
+# boundary_visualizations = env.BuildVisualizations(
+#     source = [dev_guesses],
+#     target = [layer_visualizations],
+#     THRESHOLD = env["THRESHOLD"],
+#     NUM_LAYERS = len(env["HRNN_LAYER_NAMES"])
+# )
+
+
+   
     # for fold in range(env["FOLDS"]):
     #     for min_seq, max_seq in env["SEQ_LENGTHS"]:
     #         train, dev, test = env.GenerateDocSplits(
