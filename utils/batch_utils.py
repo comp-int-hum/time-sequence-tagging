@@ -7,19 +7,6 @@ import torch.nn.utils.rnn as rnn_utils
 from itertools import accumulate
 import json
 
-def unpack_data(datapoint):
-    """Unpack data from datapoint dict
-
-    Args:
-        datapoint (dict): a dictionary representing a sequence from a text and its metadata
-
-    Returns:
-        tuple: (embeddings, multiclass labels, metadata)
-    """
-    # labels = [datapoint["paragraph_labels"], datapoint["chapter_labels"]] if args.boundary_type == "both" else [datapoint["{}_labels".format(args.boundary_type)]]
-    # return datapoint.pop("flattened_embeddings"), labels, datapoint
-    return datapoint["flattened_embeddings"], datapoint["hierarchical_labels"], datapoint["metadata"], datapoint["flattened_sentences"]
-
 def sort_labels_by_hierarchy(label_dict):
     labels = label_dict.get("labels", {})
     order = label_dict.get("hierarchy_order", [])
@@ -35,7 +22,7 @@ def get_batch(data_file, label_file, embedding_file, batch_size=32, device="cpu"
         device (str, optional): Device to move tensors to. Defaults to "cpu".
 
     Returns:
-        tuple: (data_batches, label_batches), metadata_batches
+        Dict: 
     """
     embed_batches, label_batches, metadata_batches, length_batches, sentence_batches = [], [], [], [], []
     embed_batch, label_batch, metadata_batch, sentence_batch = [], [], [], []

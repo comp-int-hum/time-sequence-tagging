@@ -3,18 +3,18 @@ import torch.nn as nn
 import torch
 import math
 import random
-import logging
 
-logger = logging.getLogger("hrnn_tagger")
-
-class HRNN(Module):
-    def __init__(self, input_size, hidden_size, num_layers, layer_names = [], dropout = 0., device = "cpu"):
+class HRNN_LM(Module):
+    def __init__(self, input_size, hidden_size, emb_dim, vocab_size, num_layers, layer_names = [], dropout = 0., device = "cpu"):
         super().__init__()
         
         self.hidden_dim = hidden_size
         
         self.num_layers = num_layers
         self.hidden_size = hidden_size
+        
+        self.lm_output = nn.Embedding(vocab_size, emb_dim)
+
         self.device = device
         
         self.dropout = nn.Dropout(p = dropout)
@@ -73,7 +73,7 @@ class HRNNCell(Module):
             for i in range(num_layers)
         ])
 
-        self.transition_mlps = nn.ModuleList([
+        self.up_transitions = nn.ModuleList([
             MLP(input_size = hidden_size, 
                 hidden_size = hidden_size, 
                 output_size = 1,
@@ -94,10 +94,13 @@ class HRNNCell(Module):
         
         temperature = torch.tensor(temperature, device = self.device, dtype = x.dtype)
         batch_size = x.shape[0]
-
+        # updated_hidden_states = [torch.zeros_like(hidden_states[0]) for _ in range(self.num_layers)]
         hs_mixture_weights = [[] for _ in range(self.num_layers)]
         candidate_hidden_states = [[] for _ in range(self.num_layers)]
         
+        # print(f"Hidden state 0 shape: {hidden_states[0].shape}")
+        # if teacher_forcing is not None:
+        #     print(f"teacher forcing shape: {teacher_forcing.shape}")
         cum_transition_probs = []
         cum_transition_preds = []
         
@@ -109,7 +112,7 @@ class HRNNCell(Module):
             cell_outputs.append(input_to_cell)
             
             # Get predicted transition probability
-            transition_pred = torch.sigmoid(self.transition_mlps[l](input_to_cell)) if l != self.num_layers-1 else torch.zeros((batch_size, 1), device = self.device)
+            transition_pred = torch.sigmoid(self.up_transitions[l](input_to_cell)) if l != self.num_layers-1 else torch.zeros((batch_size, 1), device = self.device)
             
             # Set transition probability to model prediction or teacher label
             transition_prob = teacher_forcing[:, l].unsqueeze(dim = 1) if (teacher_forcing is not None and l < teacher_forcing.shape[1]) else transition_pred
@@ -161,7 +164,7 @@ class HRNNCell(Module):
             cell_outputs.append(input_to_cell)
             
             # Get predicted transition probability
-            transition_pred = torch.sigmoid(self.transition_mlps[l](input_to_cell)) if l != self.num_layers-1 else torch.zeros((batch_size, 1), device = self.device)
+            transition_pred = torch.sigmoid(self.up_transitions[l](input_to_cell)) if l != self.num_layers-1 else torch.zeros((batch_size, 1), device = self.device)
             
             # Set transition probability to model prediction or teacher label
             transition_prob = teacher_forcing[:, l].unsqueeze(dim = 1) if (teacher_forcing is not None and l < teacher_forcing.shape[1]) else transition_pred

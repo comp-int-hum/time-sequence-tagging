@@ -18,7 +18,7 @@ import torch
 from utils.batch_utils import get_batch, unpad_predictions
 from scripts.training.models.hrnn_tagger import HRNN
 
-logger = logging.getLogger("evaluate_model")
+logger = logging.getLogger(__name__)
 
 
 def run_model(model, batches, device="cpu"):
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     
     make_parent_dirs(args.output)
     
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     torch.cuda.empty_cache()
 

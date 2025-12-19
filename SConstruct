@@ -128,6 +128,13 @@ env = Environment(
     variables=vars,
     # ENV=os.environ,
     BUILDERS={
+
+        "LogTest" : Builder(
+            action= ("python scripts/log_test.py "
+                     "--output ${TARGETS[0]} "
+            )
+        ),
+
         # 1. DATASET BUILDERS
 
         # a) chicago
@@ -305,6 +312,10 @@ def gpu_task_config(name, time_required, memory_required=env["GRID_MEMORY"]):
         "STEAMROLLER_ENGINE": env["STEAMROLLER_ENGINE"],
         "STEAMROLLER_GPU_COUNT": env["GPU_COUNT"],
     }
+
+
+env.LogTest(source = [],
+            target = ["output.txt"])
 
 # Datasets
 processed_datasets = {}
@@ -518,126 +529,3 @@ for architecture, results in architecture_results.items():
         target=[f"{arch_conf_dir}/confidence_matrix.json"],
         THRESHOLD=env["THRESHOLD"],
     )
-
-
-# training_metrics_visualizations = env.PlotTrainingMetrics(
-#     source = [training_metrics],
-#     target = [
-#         f"{split_prefix}/results/loss_curves.png",
-#         f"{split_prefix}/results/par_layer_loss_curves.png",
-#         f"{split_prefix}/results/chapter_layer_loss_curves.png",
-#     ]
-# )
-
-# # Get ROC metrics and visualizations
-# roc_visualizations = [f"{roc_path}/roc_curve_for_{layer_name}" for layer_name in env["HRNN_LAYER_NAMES"]]
-
-# roc_metrics = env.ComputeROCMetrics(
-#     source = [dev_guesses],
-#     target = [f"{roc_path}/optimal_thresholds.json",
-#                 roc_visualizations],
-# )
-
-# # Get confidence matrix
-# confidence_matrix = env.ComputeConfidenceMetrics(
-#     source = [dev_guesses],
-#     target = [f"{layer_weight_path}/confidence_matrix.json"],
-#     THRESHOLD = env["THRESHOLD"],
-# )
-
-# # Get boundary visualizations
-# layer_visualizations = [f"{visualization_path}/visualization_{num}" for num in range(env["VIS_NUM"])]
-
-# boundary_visualizations = env.BuildVisualizations(
-#     source = [dev_guesses],
-#     target = [layer_visualizations],
-#     THRESHOLD = env["THRESHOLD"],
-#     NUM_LAYERS = len(env["HRNN_LAYER_NAMES"])
-# )
-
-
-   
-    # for fold in range(env["FOLDS"]):
-    #     for min_seq, max_seq in env["SEQ_LENGTHS"]:
-    #         train, dev, test = env.GenerateDocSplits(
-    #             source=seq_file,
-    #             target=[
-    #                 "work/${MODEL_NAME}/train.jsonl.gz",
-    #                 "work/${MODEL_NAME}/dev.jsonl.gz",
-    #                 "work/${MODEL_NAME}/test.jsonl.gz"
-    #             ],
-    #             MODEL_NAME=model["name"],
-    #             RANDOM_SEED=fold,
-    #             MIN_LEN = min_seq,
-    #             MAX_LEN = max_seq,
-    #             SAMPLE_METHOD = "from_beginning",
-    #             SAMPLES_PER_DOCUMENT = 1,
-    #             TRAIN_PROPORTION = 0.8,
-    #             DEV_PROPORTION = 0.1,
-    #             TEST_PROPORTION = 0.1
-    #         )
-            
-    #         for layer_weight in env.get("LAYER_WEIGHTS", []):
-    #             layer_weight_path = f"{env['WORK_DIR']}/{model['name']}/trained_model_output/layer_weight_{layer_weight}"
-    #             visualization_path = f"{layer_weight_path}/visualizations"
-    #             roc_path = f"{layer_weight_path}/roc_metrics"
-                
-    #             train_guesses, dev_guesses, training_summary, training_metrics, trained_model = env.TrainHRNN(
-    #                 source = [train, dev, test],
-    #                 target = [f"{layer_weight_path}/guesses/train_guesses.pkl",
-    #                             f"{layer_weight_path}/guesses/dev_guesses.pkl",
-    #                             f"{layer_weight_path}/results/training_results.txt",
-    #                             f"{layer_weight_path}/results/training_metrics.pkl",
-    #                             f"{layer_weight_path}/model/model_state.pth"],
-    #                 MODEL_NAME = model["name"],
-    #                 BATCH_SIZE = 10,
-    #                 DROPOUT = 0.6,
-    #                 TEACHER_RATIO = 1.0,
-    #                 EPOCHS = env.get("EPOCHS"),
-    #                 THRESHOLD =  env["THRESHOLD"],
-    #                 BALANCE_POS_NEG = [1.0, 1.0],
-    #                 LAYER_WEIGHTS = [1.0, layer_weight],
-    #                 **gpu_task_config("train_hrnn", "12:00:00", "32G"),
-    #             )
-                
-    #             training_metrics_visualizations = env.PlotTrainingMetrics(
-    #                 source = [training_metrics],
-    #                 target = [
-    #                     f"{layer_weight_path}/results/loss_curves.png",
-    #                     f"{layer_weight_path}/results/par_layer_loss_curves.png",
-    #                     f"{layer_weight_path}/results/chapter_layer_loss_curves.png",
-    #                 ]
-    #             )
-                
-    #             # Get ROC metrics and visualizations
-    #             roc_visualizations = [f"{roc_path}/roc_curve_for_{layer_name}" for layer_name in env["HRNN_LAYER_NAMES"]]
-                
-    #             roc_metrics = env.ComputeROCMetrics(
-    #                 source = [dev_guesses],
-    #                 target = [f"{roc_path}/optimal_thresholds.json",
-    #                             roc_visualizations],
-    #             )
-                
-    #             # Get confidence matrix
-    #             confidence_matrix = env.ComputeConfidenceMetrics(
-    #                 source = [dev_guesses],
-    #                 target = [f"{layer_weight_path}/confidence_matrix.json"],
-    #                 THRESHOLD = env["THRESHOLD"],
-    #             )
-                
-    #             # Get boundary visualizations
-    #             layer_visualizations = [f"{visualization_path}/visualization_{num}" for num in range(env["VIS_NUM"])]
-                
-    #             boundary_visualizations = env.BuildVisualizations(
-    #                 source = [dev_guesses],
-    #                 target = [layer_visualizations],
-    #                 THRESHOLD = env["THRESHOLD"],
-    #                 NUM_LAYERS = len(env["HRNN_LAYER_NAMES"])
-    #             )
-                
-    #             chapterbreak_guesses = env.Evaluate(
-    #                 source = [encoded_chapterbreak_data, trained_model],
-    #                 target = [f"{layer_weight_path}/chapterbreak_guesses.pkl"],
-    #                 BATCH_SIZE = 10,
-    #                 THRESHOLD =  env["THRESHOLD"]
-    #             )
